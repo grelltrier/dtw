@@ -28,7 +28,7 @@ fn main() {
 
     /*FILE *fp;            /// data file pointer
     FILE *qp;            /// query file pointer
-    double bsf;          /// best-so-far
+    double best_so_far;          /// best-so-far
     double *u, *l, *qo, *uo, *lo,*tz,*u_d, *l_d;
 
 
@@ -47,15 +47,16 @@ fn main() {
 
     // data array and query array
     let mut t: Vec<f64> = Vec::new();
+    let mut tz: Vec<f64> = Vec::new();
     let mut q: Vec<f64> = Vec::new();
 
-    let best_so_far = f64::MAX;
+    let mut best_so_far = f64::MAX;
     let (mut ex, mut ex2) = (0.0, 0.0);
     let (mut mean, mut std);
-    let loc = 0;
-    let kim = 0;
-    let keogh = 0;
-    let keogh2 = 0;
+    let mut loc = 0;
+    let mut kim = 0;
+    let mut keogh = 0;
+    let mut keogh2 = 0;
 
     // For every EPOCH points, all cummulative values, such as ex (sum), ex2 (sum square), will be restarted for reducing the floating point error.
     let EPOCH = 100000;
@@ -84,6 +85,7 @@ fn main() {
             break;
         }
         let d = buf.parse::<f64>().unwrap();
+        buf.clear();
         ex += d;
         ex2 += d * d;
         q.push(d);
@@ -122,186 +124,191 @@ fn main() {
     }
 
     // Initial the cummulative lower bound
-    let cb = vec![0; m];
-    let cb1 = cb.clone();
-    let cb2 = cb.clone();
+    let mut cb = vec![0.0; m];
+    let mut cb1 = cb.clone();
+    let mut cb2 = cb.clone();
 
-    let i = 0; // current index of the data in current chunk of size EPOCH
-    let j = 0; // the starting index of the data in the circular array, t
+    let mut i = 0; // current index of the data in current chunk of size EPOCH
+    let mut j = 0; // the starting index of the data in the circular array, t
     let (mut ex, mut ex2) = (0.0, 0.0);
-    let done = false;
-    let (it, ep, k) = (0, 0, 0);
-    let index; // the starting index of the data in current chunk of size EPOCH
-    let (buffer, u_buff, l_buff);
+    let mut done = false;
+    let (mut it, mut ep, k) = (0, 0, 0);
+    let mut index; // the starting index of the data in current chunk of size EPOCH
+                   // In the C program it is called I
+    let mut buffer: Vec<f64> = Vec::new();
+    let mut u_buff: Vec<f64> = Vec::new();
+    let mut l_buff: Vec<f64> = Vec::new();
 
     while !done {
         // Read first m-1 points
-        ep = 0;
         if it == 0 {
-            for k in 0..(m - 1) {
-                if fscanf(fp, "%lf", &d) != EOF {
-                    buffer[k] = d;
+            for _ in 0..(m - 1) {
+                if 0 == reader.read_line(&mut buf).unwrap() {
+                    break;
                 }
+                let d = buf.parse::<f64>().unwrap();
+                buf.clear();
+                buffer.push(d);
             }
         } else {
             for k in 0..m - 1 {
                 buffer[k] = buffer[EPOCH - m + 1 + k];
             }
         }
-    }
-    /*
-
-
 
         // Read buffer of size EPOCH or when all data has been read.
-        ep=m-1;
-        while(ep<EPOCH)
-        {   if (fscanf(fp,"%lf",&d) == EOF)
+        ep = m - 1;
+        while ep < EPOCH {
+            if 0 == reader.read_line(&mut buf).unwrap() {
                 break;
+            }
+            let d = buf.parse::<f64>().unwrap();
+            buf.clear();
             buffer[ep] = d;
-            ep++;
+            ep += 1;
         }
 
         // Data are read in chunk of size EPOCH.
         // When there is nothing to read, the loop is end.
-        if (ep<=m-1)
-        {   done = true;
-        } else
-        {   lower_upper_lemire(buffer, ep, r, l_buff, u_buff);
+        if ep < m {
+            done = true;
+        } else {
+            let (l_buff, u_buff) = ucr::lower_upper_lemire(&buffer, ep, r);
 
             // Just for printing a dot for approximate a million point. Not much accurate.
-            if (it%(1000000/(EPOCH-m+1))==0)
-                fprintf(stderr,".");
+            if it % (1000000 / (EPOCH - m + 1)) == 0 {
+                print!(".");
+            }
 
             // Do main task here..
-            ex=0; ex2=0;
-            for(i=0; i<ep; i++)
-            {
+            let (mut ex, mut ex2) = (0.0, 0.0);
+            for i in 0..ep {
                 // A bunch of data has been read and pick one of them at a time to use
-                d = buffer[i];
+                let d = buffer[i];
 
                 // Calcualte sum and sum square
                 ex += d;
-                ex2 += d*d;
+                ex2 += d * d;
 
                 // t is a circular array for keeping current data
-                t[i%m] = d;
+                t[i % m] = d;
 
                 // Double the size for avoiding using modulo "%" operator
-                t[(i%m)+m] = d;
+                t[(i % m) + m] = d;
 
                 // Start the task when there are more than m-1 points in the current chunk
-                if( i >= m-1 )
-                {
-                    mean = ex/m;
-                    std = ex2/m;
-                    std = sqrt(std-mean*mean);
+                if i >= m - 1 {
+                    mean = ex / m as f64;
+                    std = ex2 / m as f64;
+                    std = f64::sqrt(std - mean * mean);
 
                     // compute the start location of the data in the current circular array, t
-                    j = (i+1)%m;
+                    j = (i + 1) % m;
                     // the start location of the data in the current chunk
-                    I = i-(m-1);
+                    index = i - (m - 1);
 
                     // Use a constant lower bound to prune the obvious subsequence
-                    lb_kim = lb_kim_hierarchy(t, q, j, m, mean, std, bsf);
+                    let lb_kim = ucr::lb_kim_hierarchy(&t, &q, j, m, mean, std);
 
-                    if (lb_kim < bsf)
-                    {
+                    if lb_kim < best_so_far {
                         // Use a linear time lower bound to prune; z_normalization of t will be computed on the fly.
                         // uo, lo are envelop of the query.
-                        lb_k = lb_keogh_cumulative(order, t, uo, lo, cb1, j, m, mean, std, bsf);
-                        if (lb_k < bsf)
-                        {
+                        let lb_k = ucr::lb_keogh_cumulative(
+                            &order,
+                            &t,
+                            &uo,
+                            &lo,
+                            &mut cb1[..],
+                            j,
+                            m,
+                            mean,
+                            std,
+                        );
+                        if lb_k < best_so_far {
                             // Take another linear time to compute z_normalization of t.
                             // Note that for better optimization, this can merge to the previous function.
-                            for(k=0;k<m;k++)
-                            {   tz[k] = (t[(k+j)] - mean)/std;
+                            for k in 0..m {
+                                tz[k] = (t[(k + j)] - mean) / std;
                             }
 
                             // Use another lb_keogh to prune
                             // qo is the sorted query. tz is unsorted z_normalized data.
                             // l_buff, u_buff are big envelop for all data in this chunk
-                            lb_k2 = lb_keogh_data_cumulative(order, tz, qo, cb2, l_buff+I, u_buff+I, m, mean, std, bsf);
-                            if (lb_k2 < bsf)
-                            {
+                            let lb_k2 = ucr::lb_keogh_data_cumulative(
+                                &order,
+                                &qo,
+                                &mut cb2[..],
+                                &l_buff[index..],
+                                &u_buff[index..],
+                                m,
+                                mean,
+                                std,
+                            );
+                            if lb_k2 < best_so_far {
                                 // Choose better lower bound between lb_keogh and lb_keogh2 to be used in early abandoning DTW
                                 // Note that cb and cb2 will be cumulative summed here.
-                                if (lb_k > lb_k2)
-                                {
-                                    cb[m-1]=cb1[m-1];
-                                    for(k=m-2; k>=0; k--)
-                                        cb[k] = cb[k+1]+cb1[k];
-                                }
-                                else
-                                {
-                                    cb[m-1]=cb2[m-1];
-                                    for(k=m-2; k>=0; k--)
-                                        cb[k] = cb[k+1]+cb2[k];
+                                if lb_k > lb_k2 {
+                                    cb[m - 1] = cb1[m - 1];
+                                    for k in (0..m - 1).rev() {
+                                        cb[k] = cb[k + 1] + cb1[k];
+                                    }
+                                } else {
+                                    cb[m - 1] = cb2[m - 1];
+                                    for k in (0..m - 1).rev() {
+                                        cb[k] = cb[k + 1] + cb2[k];
+                                    }
                                 }
 
                                 // Compute DTW and early abandoning if possible
-                                dist = dtw(tz, q, cb, m, r, bsf);
+                                let dist = ucr::dtw(&tz, &q, &cb, m, r);
 
-                                if( dist < bsf )
-                                {   // Update bsf
+                                if dist < best_so_far {
+                                    // Update best_so_far
                                     // loc is the real starting location of the nearest neighbor in the file
-                                    bsf = dist;
-                                    loc = (it)*(EPOCH-m+1) + i-m+1;
+                                    best_so_far = dist;
+                                    loc = (it) * (EPOCH - m + 1) + i - m + 1;
                                 }
-                            } else
-                                keogh2++;
-                        } else
-                            keogh++;
-                    } else
-                        kim++;
+                            } else {
+                                keogh2 += 1;
+                            }
+                        } else {
+                            keogh += 1;
+                        }
+                    } else {
+                        kim += 1;
+                    }
 
                     // Reduce obsolute points from sum and sum square
                     ex -= t[j];
-                    ex2 -= t[j]*t[j];
+                    ex2 -= t[j] * t[j];
                 }
             }
 
             // If the size of last chunk is less then EPOCH, then no more data and terminate.
-            if (ep<EPOCH)
-                done=true;
-            else
-                it++;
+            if ep < EPOCH {
+                done = true;
+            } else {
+                it += 1;
+            }
         }
     }
-
-    i = (it)*(EPOCH-m+1) + ep;
-    fclose(fp);
-
-    free(q);
-    free(u);
-    free(l);
-    free(uo);
-    free(lo);
-    free(qo);
-    free(cb);
-    free(cb1);
-    free(cb2);
-    free(tz);
-    free(t);
-    free(l_d);
-    free(u_d);
-    free(l_buff);
-    free(u_buff);
-
-    t2 = clock();
-    printf("\n");
+    i = (it) * (EPOCH - m + 1) + ep;
+    let t2 = Instant::now();
+    println!();
 
     // Note that loc and i are long long.
-    cout << "Location : " << loc << endl;
-    cout << "Distance : " << sqrt(bsf) << endl;
-    cout << "Data Scanned : " << i << endl;
-    cout << "Total Execution Time : " << (t2-t1)/CLOCKS_PER_SEC << " sec" << endl;
+    println!("Location : {}", loc);
+    println!("Distance : {:.2}", f64::sqrt(best_so_far));
+    println!("Data Scanned : {}", i);
+    println!("Total Execution Time : {:?}", t2.duration_since(t1));
 
     // printf is just easier for formating ;)
-    printf("\n");
-    printf("Pruned by LB_Kim    : %6.2f%%\n", ((double) kim / i)*100);
-    printf("Pruned by LB_Keogh  : %6.2f%%\n", ((double) keogh / i)*100);
-    printf("Pruned by LB_Keogh2 : %6.2f%%\n", ((double) keogh2 / i)*100);
-    printf("DTW Calculation     : %6.2f%%\n", 100-(((double)kim+keogh+keogh2)/i*100));
-    return 0;*/
+    println!();
+    println!("Pruned by LB_Kim    : {:.2}", (kim / i) * 100);
+    println!("Pruned by LB_Keogh  : {:.2}", (keogh / i) * 100);
+    println!("Pruned by LB_Keogh2 : {:.2}", (keogh2 / i) * 100);
+    println!(
+        "DTW Calculation     : {:.2}",
+        100 - ((kim + keogh + keogh2) / i * 100)
+    );
 }

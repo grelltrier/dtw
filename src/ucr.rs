@@ -175,7 +175,6 @@ pub fn lb_keogh_cumulative(
 
 pub fn lb_keogh_data_cumulative(
     order: &[usize],
-    tz: f64,
     qo: &[f64],
     cb: &mut [f64],
     l: &[f64],
