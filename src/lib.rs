@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use core::ops::AddAssign;
 use ndarray::prelude::*;
 use ndarray::Data;

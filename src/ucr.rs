@@ -9,31 +9,42 @@ fn dist(x: f64, y: f64) -> f64 {
 /// Finding the envelop of min and max value for LB_Keogh
 /// Implementation idea is intoruduced by Danial Lemire in his paper
 /// "Faster Retrieval with a Two-Pass Dynamic-Time-Warping Lower Bound", Pattern Recognition 42(9), 2009.
-pub fn lower_upper_lemire(query: &[f64], len: usize, r: usize) -> (Vec<f64>, Vec<f64>) {
+pub fn lower_upper_lemire(query: &[f64], r: usize) -> (Vec<f64>, Vec<f64>) {
+    let len = query.len();
+    let mut upper = vec![0.0; len];
+    let mut lower = upper.clone();
+
+    debug!("r: {}", r);
+    debug!("Initialize deque");
     let mut du: VecDeque<usize> = VecDeque::with_capacity(2 * r + 2);
     let mut dl: VecDeque<usize> = VecDeque::with_capacity(2 * r + 2);
-
-    let mut upper = Vec::new();
-    let mut lower = Vec::new();
+    debug!("Initialized deque");
 
     du.push_back(0);
     dl.push_back(0);
 
+    debug!("Start first loop");
     for i in 1..len {
         if i > r {
+            debug!("Branch started: if i > r");
             upper[i - r - 1] = query[*du.front().unwrap()];
             lower[i - r - 1] = query[*dl.front().unwrap()];
+            debug!("Branch ended: if i > r");
         }
         if query[i] > query[i - 1] {
+            debug!("Branch started: query[i] > query[i - 1]");
             du.pop_back();
             while !du.is_empty() && query[i] > query[*du.back().unwrap()] {
                 du.pop_back();
             }
+            debug!("Branch ended: query[i] > query[i - 1]");
         } else {
+            debug!("Branch started: else");
             dl.pop_back();
             while !dl.is_empty() && query[i] < query[*dl.back().unwrap()] {
                 dl.pop_back();
             }
+            debug!("Branch ended: else");
         }
         du.push_back(i);
         dl.push_back(i);
@@ -44,7 +55,8 @@ pub fn lower_upper_lemire(query: &[f64], len: usize, r: usize) -> (Vec<f64>, Vec
             dl.pop_front();
         }
     }
-    for i in len..len + r + 1 {
+    debug!("First loop completed");
+    for i in len..(len + r + 1) {
         upper[i - r - 1] = query[*du.front().unwrap()];
         lower[i - r - 1] = query[*dl.front().unwrap()];
         if i - du.front().unwrap() >= 2 * r + 1 {

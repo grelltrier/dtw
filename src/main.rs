@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use core::ops::AddAssign;
 use ndarray::prelude::*;
 use ndarray::Data;
@@ -19,30 +22,31 @@ use dtw::*;
 
 /// Main Function
 fn main() {
-    // Input parameter
+    // TODO: There is an error with setting m, r and R correctly!!!
 
+    // Initialize logger
+    pretty_env_logger::init();
+
+    // Input parameters
     let data_file_name = "Data.txt";
-    let query_file_name = "Query.txt";
-    let query_length_limit: Option<usize> = None; // Disregard everything of the query after this length
+    let query_file_name = "Query2.txt";
+    let query_length_limit: Option<usize> = Some(128); // Disregard everything of the query after this length
     let warping_window_size = 0.05;
-
-    /*FILE *fp;            /// data file pointer
-    FILE *qp;            /// query file pointer
-    double best_so_far;          /// best-so-far
-    double *u, *l, *qo, *uo, *lo,*tz,*u_d, *l_d;
-
-
-    double d;
-    long long i , j;
-    double t1,t2;
-    double dist=0, lb_kim=0, lb_k=0, lb_k2=0;
-    */
 
     // Set limit to m if one was given
     let m = if let Some(limit) = query_length_limit {
         limit
     } else {
         usize::MAX
+    };
+
+    // Check boundaries of warping window
+    let warping_window_size: f64 = if warping_window_size < 0.0 {
+        0.0
+    } else if warping_window_size > 1.0 {
+        1.0
+    } else {
+        warping_window_size
     };
 
     // data array and query array
@@ -61,22 +65,13 @@ fn main() {
     // For every EPOCH points, all cummulative values, such as ex (sum), ex2 (sum square), will be restarted for reducing the floating point error.
     let EPOCH = 100000;
 
-    // r  : size of Sakoe-Chiba warpping band
-    let R: f64 = warping_window_size;
-    let r: usize = if R <= 1.0 {
-        (R * m as f64).floor() as usize
-    } else {
-        R.floor() as usize
-    };
-
     let fp = File::open(data_file_name).unwrap(); // Open data file
     let qp = File::open(query_file_name).unwrap(); // Open query file
 
     // start the clock
-    let t1 = Instant::now();
+    let time_start = Instant::now();
 
     // Read query file
-
     let mut buf = String::new(); // Single data point in sequence
     let mut reader = BufReader::new(qp);
 
@@ -84,36 +79,50 @@ fn main() {
         if 0 == reader.read_line(&mut buf).unwrap() {
             break;
         }
-        let d = buf.parse::<f64>().unwrap();
+        //debug!("Try parsing {} from query to f64", buf.trim());
+        let d = buf.trim().parse::<f64>().unwrap();
         buf.clear();
         ex += d;
         ex2 += d * d;
         q.push(d);
     }
+    // Set length to query length
+    let m = q.len();
+
+    // r  : size of Sakoe-Chiba warpping band
+    let r: usize = (warping_window_size * m as f64).floor() as usize;
+
+    debug!("Done parsing query");
+    //debug!("Query: {:?}", q);
+    debug!("ex: {}", ex);
+    debug!("ex2: {}", ex2);
+    debug!("buf: {}", buf);
 
     // Do z-normalize the query, keep in same array, q
     mean = ex / m as f64;
     std = ex2 / m as f64;
     std = f64::sqrt(std - mean * mean);
-    for entry in q.iter_mut() {
-        *entry = (*entry - mean) / std;
-    }
+    let q: Vec<f64> = q.iter_mut().map(|entry| (*entry - mean) / std).collect();
+    debug!("Done z-normalizing the query");
 
-    // Create envelop of the query: lower envelop, l, and upper envelop, u
-    let (lower, upper) = ucr::lower_upper_lemire(&q, m, r);
+    // Create envelope of the query: lower envelop, l, and upper envelop, u
+    let (lower, upper) = ucr::lower_upper_lemire(&q, r);
+    debug!("Created envelope of the query");
 
+    debug!("Sort query");
     // Sort the query one time by abs(z-norm(q[i]))
     let mut q_tmp: Vec<(usize, f64)> = Vec::new();
     for (no, entry) in q.iter().enumerate() {
         q_tmp.push((no, *entry));
     }
     q_tmp.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    debug!("Done sorting");
 
     // also create another arrays for keeping sorted envelop
-    let mut order: Vec<usize> = Vec::new(); //new order of the query
-    let mut qo: Vec<f64> = Vec::new();
-    let mut uo: Vec<f64> = Vec::new();
-    let mut lo: Vec<f64> = Vec::new();
+    let mut order: Vec<usize> = vec![0; m]; //new order of the query
+    let mut qo: Vec<f64> = vec![0.0; m];
+    let mut uo: Vec<f64> = qo.clone();
+    let mut lo: Vec<f64> = qo.clone();
 
     for i in 0..m {
         let (o, _) = q_tmp[i];
@@ -146,7 +155,7 @@ fn main() {
                 if 0 == reader.read_line(&mut buf).unwrap() {
                     break;
                 }
-                let d = buf.parse::<f64>().unwrap();
+                let d = buf.trim().parse::<f64>().unwrap();
                 buf.clear();
                 buffer.push(d);
             }
@@ -162,7 +171,7 @@ fn main() {
             if 0 == reader.read_line(&mut buf).unwrap() {
                 break;
             }
-            let d = buf.parse::<f64>().unwrap();
+            let d = buf.trim().parse::<f64>().unwrap();
             buf.clear();
             buffer[ep] = d;
             ep += 1;
@@ -173,7 +182,7 @@ fn main() {
         if ep < m {
             done = true;
         } else {
-            let (l_buff, u_buff) = ucr::lower_upper_lemire(&buffer, ep, r);
+            let (l_buff, u_buff) = ucr::lower_upper_lemire(&buffer, r);
 
             // Just for printing a dot for approximate a million point. Not much accurate.
             if it % (1000000 / (EPOCH - m + 1)) == 0 {
@@ -212,7 +221,7 @@ fn main() {
 
                     if lb_kim < best_so_far {
                         // Use a linear time lower bound to prune; z_normalization of t will be computed on the fly.
-                        // uo, lo are envelop of the query.
+                        // uo, lo are envelopes of the query.
                         let lb_k = ucr::lb_keogh_cumulative(
                             &order,
                             &t,
@@ -233,7 +242,7 @@ fn main() {
 
                             // Use another lb_keogh to prune
                             // qo is the sorted query. tz is unsorted z_normalized data.
-                            // l_buff, u_buff are big envelop for all data in this chunk
+                            // l_buff, u_buff are big envelopes for all data in this chunk
                             let lb_k2 = ucr::lb_keogh_data_cumulative(
                                 &order,
                                 &qo,
@@ -293,14 +302,17 @@ fn main() {
         }
     }
     i = (it) * (EPOCH - m + 1) + ep;
-    let t2 = Instant::now();
+    let time_end = Instant::now();
     println!();
 
     // Note that loc and i are long long.
     println!("Location : {}", loc);
     println!("Distance : {:.2}", f64::sqrt(best_so_far));
     println!("Data Scanned : {}", i);
-    println!("Total Execution Time : {:?}", t2.duration_since(t1));
+    println!(
+        "Total Execution Time : {:?}",
+        time_end.duration_since(time_start)
+    );
 
     // printf is just easier for formating ;)
     println!();
