@@ -2,6 +2,8 @@ use std::collections::VecDeque;
 
 use super::*;
 
+const UCR_INF: f64 = 1e20;
+
 fn dist(x: f64, y: f64) -> f64 {
     (x - y) * (x - y)
 }
@@ -83,10 +85,11 @@ pub fn lower_upper_lemire(query: &[f64], r: usize) -> (Vec<f64>, Vec<f64>) {
 /// However, because of z-normalization the top and bottom cannot give siginifant benefits.
 /// And using the first and last points can be computed in constant time.
 /// The prunning power of LB_Kim is non-trivial, especially when the query is not long, say in length 128.
+/// TODO: There should probably be checks to ensure it does not overflow when adding the numbers. The check if its larger than INF from the C code should work though
 pub fn lb_kim_hierarchy(t: &[f64], q: &[f64], j: usize, len: usize, mean: f64, std: f64) -> f64 {
     let mut d;
     let mut lb;
-    let best_so_far = f64::MAX;
+    let best_so_far = UCR_INF;
 
     // 1 point at front and back
     let x0 = (t[j] - mean) / std;
@@ -136,12 +139,12 @@ pub fn lb_kim_hierarchy(t: &[f64], q: &[f64], j: usize, len: usize, mean: f64, s
 }
 
 /// LB_Keogh 1: Create Envelop for the query
-/// Note that because the query is known, envelop can be created once at the begenining.
+/// Note that because the query is known, envelop can be created once at the begining.
 ///
 /// Variable Explanation,
 /// order : sorted indices for the query.
-/// uo, lo: upper and lower envelops for the query, which already sorted.
 /// t     : a circular array keeping the current data.
+/// uo, lo: upper and lower envelops for the query, which already sorted.
 /// j     : index of the starting location in t
 /// cb    : (output) current bound at each position. It will be used later for early abandoning in DTW.
 pub fn lb_keogh_cumulative(

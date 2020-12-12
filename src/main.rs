@@ -26,12 +26,11 @@ fn main() {
 
     // Initialize logger
     pretty_env_logger::init();
-
     // Input parameters
     let data_file_name = "Data.txt";
     let query_file_name = "Query2.txt";
     let query_length_limit: Option<usize> = Some(128); // Disregard everything of the query after this length
-    let warping_window_size = 0.05;
+    let warping_window_size = 0.10;
 
     // Set limit to m if one was given
     let m = if let Some(limit) = query_length_limit {
@@ -73,10 +72,12 @@ fn main() {
 
     // Read query file
     let mut buf = String::new(); // Single data point in sequence
-    let mut reader = BufReader::new(qp);
+    let mut queryreader = BufReader::new(qp);
+    //let mut datareader = BufReader::new(fp);
+    let mut data_container = utilities::DataContainer::new(data_file_name);
 
     for _ in 0..m {
-        if 0 == reader.read_line(&mut buf).unwrap() {
+        if 0 == queryreader.read_line(&mut buf).unwrap() {
             break;
         }
         //debug!("Try parsing {} from query to f64", buf.trim());
@@ -141,57 +142,64 @@ fn main() {
     let mut j = 0; // the starting index of the data in the circular array, t
     let (mut ex, mut ex2) = (0.0, 0.0);
     let mut done = false;
-    let (mut it, mut ep, k) = (0, 0, 0);
+    let (mut while_iteration, mut ep, k) = (0, 0, 0);
     let mut index; // the starting index of the data in current chunk of size EPOCH
                    // In the C program it is called I
     let mut buffer: Vec<f64> = Vec::new();
-    let mut u_buff: Vec<f64> = Vec::new();
-    let mut l_buff: Vec<f64> = Vec::new();
+
+    debug!("Start while");
 
     while !done {
         // Read first m-1 points
-        if it == 0 {
-            for _ in 0..(m - 1) {
-                if 0 == reader.read_line(&mut buf).unwrap() {
-                    break;
-                }
-                let d = buf.trim().parse::<f64>().unwrap();
-                buf.clear();
-                buffer.push(d);
+
+        debug!("it: {}, m: {}", while_iteration, m);
+        if while_iteration == 0 {
+            for buffer_cell in buffer.iter_mut().take(m) {
+                if let Some(data) = data_container.next() {
+                    *buffer_cell = data;
+                } /*else {
+                      break;
+                  }*/
             }
         } else {
             for k in 0..m - 1 {
                 buffer[k] = buffer[EPOCH - m + 1 + k];
             }
         }
+        debug!("Done reading data to buffer");
 
         // Read buffer of size EPOCH or when all data has been read.
         ep = m - 1;
         while ep < EPOCH {
-            if 0 == reader.read_line(&mut buf).unwrap() {
+            if let Some(data) = data_container.next() {
+                buffer[ep] = data;
+                ep += 1;
+            } else {
                 break;
             }
-            let d = buf.trim().parse::<f64>().unwrap();
-            buf.clear();
-            buffer[ep] = d;
-            ep += 1;
         }
+
+        debug!("Done reading data to buffer");
 
         // Data are read in chunk of size EPOCH.
         // When there is nothing to read, the loop is end.
+
+        debug!("ep: {}, m: {}", ep, m);
         if ep < m {
             done = true;
         } else {
+            warn!("Start lower_upper_lemire");
             let (l_buff, u_buff) = ucr::lower_upper_lemire(&buffer, r);
-
+            warn!("End lower_upper_lemire");
             // Just for printing a dot for approximate a million point. Not much accurate.
-            if it % (1000000 / (EPOCH - m + 1)) == 0 {
+            if while_iteration % (1000000 / (EPOCH - m + 1)) == 0 {
                 print!(".");
             }
 
             // Do main task here..
             let (mut ex, mut ex2) = (0.0, 0.0);
             for i in 0..ep {
+                warn!("Start main task");
                 // A bunch of data has been read and pick one of them at a time to use
                 let d = buffer[i];
 
@@ -236,9 +244,16 @@ fn main() {
                         if lb_k < best_so_far {
                             // Take another linear time to compute z_normalization of t.
                             // Note that for better optimization, this can merge to the previous function.
-                            for k in 0..m {
-                                tz[k] = (t[(k + j)] - mean) / std;
-                            }
+
+                            let tz: Vec<f64> = t
+                                .iter_mut()
+                                .skip(j)
+                                .take(m)
+                                .map(|entry| (*entry - mean) / std)
+                                .collect();
+                            //for k in 0..m {
+                            //    tz[k] = (t[(k + j)] - mean) / std;
+                            //}
 
                             // Use another lb_keogh to prune
                             // qo is the sorted query. tz is unsorted z_normalized data.
@@ -275,7 +290,8 @@ fn main() {
                                     // Update best_so_far
                                     // loc is the real starting location of the nearest neighbor in the file
                                     best_so_far = dist;
-                                    loc = (it) * (EPOCH - m + 1) + i - m + 1;
+                                    debug!("Calculated distance: {}", dist);
+                                    loc = (while_iteration) * (EPOCH - m + 1) + i - m + 1;
                                 }
                             } else {
                                 keogh2 += 1;
@@ -297,11 +313,11 @@ fn main() {
             if ep < EPOCH {
                 done = true;
             } else {
-                it += 1;
+                while_iteration += 1;
             }
         }
     }
-    i = (it) * (EPOCH - m + 1) + ep;
+    i = (while_iteration) * (EPOCH - m + 1) + ep;
     let time_end = Instant::now();
     println!();
 
@@ -323,4 +339,14 @@ fn main() {
         "DTW Calculation     : {:.2}",
         100 - ((kim + keogh + keogh2) / i * 100)
     );
+
+    if loc != 430264 {
+        error!("Location should be 430264 but it is {}", loc);
+    }
+    if loc != 430264 {
+        error!(
+            "Distance should be 3.7907 but it is {:.2}",
+            f64::sqrt(best_so_far)
+        );
+    }
 }
