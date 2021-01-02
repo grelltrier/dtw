@@ -248,7 +248,14 @@ pub fn lb_keogh_data_cumulative(
 /// A,B: data and query, respectively
 /// cb : cummulative bound used for early abandoning
 /// r  : size of Sakoe-Chiba warpping band
-pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize, best_so_far: f64) -> (f64, f64) {
+pub fn dtw(
+    seq_a: &[f64],
+    seq_b: &[f64],
+    cb: &[f64],
+    m: usize,
+    r: usize,
+    best_so_far: f64,
+) -> (f64, f64) {
     let mut cost_tmp;
     let mut k = 0;
     let (mut x, mut y, mut z, mut min_cost);
@@ -273,7 +280,7 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize, best_so_far: f6
         for j in i.saturating_sub(r)..(usize::min(m - 1, i + r) + 1) {
             // Initialize all row and column
             if (i == 0) && (j == 0) {
-                cost[k] = dist(A[0], B[0]);
+                cost[k] = dist(seq_a[0], seq_b[0]);
                 min_cost = cost[k];
                 continue;
             }
@@ -295,7 +302,7 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize, best_so_far: f6
             }
 
             // Classic DTW calculation
-            cost[k] = f64::min(f64::min(x, y), z) + dist(A[i], B[j]);
+            cost[k] = f64::min(f64::min(x, y), z) + dist(seq_a[i], seq_b[j]);
 
             // Find minimum cost in row for early abandoning (possibly to use column instead of row).
             if cost[k] < min_cost {
@@ -322,12 +329,4 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize, best_so_far: f6
     //free(cost);
     //free(cost_prev);
     (cost_prev[k], best_so_far)
-}
-
-/// Print function for debugging
-pub fn printArray(array: &[f64]) {
-    for cell in array.iter() {
-        print!("{:>6.2}", cell);
-    }
-    println!();
 }

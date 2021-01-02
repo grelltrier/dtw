@@ -322,14 +322,6 @@ impl Trillion {
         cost_prev[k] // TODO: C implementation returns the bsf as well
     }
 
-    /// Print function for debugging
-    pub fn printArray(array: &[f64]) {
-        for cell in array.iter() {
-            print!("{:>6.2}", cell);
-        }
-        println!();
-    }
-
     pub fn calculate(
         data_name: &str,
         query_name: &str,
@@ -337,7 +329,7 @@ impl Trillion {
         sort: bool,
         dont_jump: bool,
     ) {
-        let EPOCH = 100000;
+        let epoch = 100000;
         let mut loc = 0;
         let (mut jump_times, mut kim, mut keogh, mut keogh2) = (0, 0, 0, 0);
         let (mut ex, mut ex2) = (0.0, 0.0);
@@ -424,16 +416,15 @@ impl Trillion {
         let mut cb2 = cb.clone();
 
         let mut j; // j: the starting index of the data in the circular array t
-        let (mut ex, mut ex2) = (0.0, 0.0);
         let mut done = false;
         let mut it = 0;
         let mut ep = 0;
         // let k = 0; Never used
 
-        let mut buffer: Vec<f64> = vec![0.0; EPOCH];
+        let mut buffer: Vec<f64> = vec![0.0; epoch];
         let mut t: Vec<f64> = vec![0.0; q.len() * 2];
-        let mut tz: Vec<f64> = vec![0.0; q.len()]; // TODO: The Ruby implementation requests an array of size 'q.len()*2'
-                                                   // Looks like this can be omitted completely
+        let mut tz: Vec<f64> = Vec::new();
+        tz.reserve(q.len());
 
         // Create a reader/iterator to get the data from
         let mut data_container = utilities::DataContainer::new(data_name);
@@ -441,7 +432,6 @@ impl Trillion {
         // ################# UP TO HERE EVERY VARIABLE IS THE SAME BETWEEN RUBY AND RUST ########################
 
         while !done {
-            ep = 0;
             // Read first m-1 points
             if it == 0 {
                 for k in 0..(q.len() - 1) {
@@ -453,13 +443,13 @@ impl Trillion {
                 }
             } else {
                 for k in 0..q.len() - 1 {
-                    buffer[k] = buffer[EPOCH - q.len() + 1 + k];
+                    buffer[k] = buffer[epoch - q.len() + 1 + k];
                 }
             }
 
             // Read buffer of size EPOCH or when all data has been read.
             ep = q.len() - 1;
-            while ep < EPOCH {
+            while ep < epoch {
                 if let Some(data) = data_container.next() {
                     buffer[ep] = data;
                     ep += 1;
@@ -474,11 +464,12 @@ impl Trillion {
                 let (l_buff, u_buff) = Self::upper_lower_lemire(&buffer, ep, r);
 
                 // Just for printing a dot for approximate a million point. Not much accurate.
-                if it % (1000000 / (EPOCH - q.len() + 1)) == 0 {
+                if it % (1000000 / (epoch - q.len() + 1)) == 0 {
                     print!(".");
                 }
 
-                let (mut ex, mut ex2) = (0.0, 0.0);
+                ex = 0.0;
+                ex2 = 0.0;
                 let mut jump = 0;
 
                 // Do main task here..
@@ -567,7 +558,7 @@ impl Trillion {
                                             // Take another linear time to compute z_normalization of t.
                                             // Note that for better optimization, this can merge to the previous function.
 
-                                            let tz: Vec<f64> = t
+                                            tz = t
                                                 .iter_mut()
                                                 .skip(j)
                                                 .take(q.len())
@@ -575,13 +566,12 @@ impl Trillion {
                                                 .collect();
 
                                             let dist = Self::dtw(&tz, &q, &cb, r, Some(bsf));
-                                            //////
-                                            ///
+
                                             if dist < bsf {
                                                 // Update bsf
                                                 // loc is the real starting location of the nearest neighbor in the file
                                                 bsf = dist;
-                                                loc = it * (EPOCH - q.len() + 1) + i + 1 - q.len();
+                                                loc = it * (epoch - q.len() + 1) + i + 1 - q.len();
                                             }
                                         }
                                     } else {
@@ -603,7 +593,7 @@ impl Trillion {
                 }
 
                 // If the size of last chunk is less then EPOCH, then no more data and terminate.
-                if ep < EPOCH {
+                if ep < epoch {
                     done = true;
                 } else {
                     it += 1;
@@ -612,7 +602,7 @@ impl Trillion {
         }
 
         let time_end = Instant::now();
-        let i = it * (EPOCH - q.len() + 1) + ep;
+        let i = it * (epoch - q.len() + 1) + ep;
 
         println!();
         println!("Location : {}", loc);
