@@ -1,8 +1,22 @@
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 
 use super::*;
 
 const UCR_INF: f64 = 1e20;
+
+/// Sorting function for the query, sort by abs(z_norm(q[i])) from high to low
+pub fn ucr_comp(a: &(usize, f64), b: &(usize, f64)) -> Ordering {
+    let a = a.1.abs();
+    let b = b.1.abs();
+    if b - a > 0.0
+    // high to low
+    {
+        Ordering::Less
+    } else {
+        Ordering::Greater
+    }
+}
 
 fn dist(x: f64, y: f64) -> f64 {
     (x - y) * (x - y)
@@ -86,10 +100,19 @@ pub fn lower_upper_lemire(query: &[f64], r: usize) -> (Vec<f64>, Vec<f64>) {
 /// And using the first and last points can be computed in constant time.
 /// The prunning power of LB_Kim is non-trivial, especially when the query is not long, say in length 128.
 /// TODO: There should probably be checks to ensure it does not overflow when adding the numbers. The check if its larger than INF from the C code should work though
-pub fn lb_kim_hierarchy(t: &[f64], q: &[f64], j: usize, len: usize, mean: f64, std: f64) -> f64 {
+pub fn lb_kim_hierarchy(
+    t: &[f64],
+    q: &[f64],
+    j: usize,
+    mean: f64,
+    std: f64,
+    best_so_far: Option<f64>,
+) -> f64 {
+    let len = q.len();
+    let best_so_far = best_so_far.unwrap_or(f64::INFINITY);
+
     let mut d;
     let mut lb;
-    let best_so_far = UCR_INF;
 
     // 1 point at front and back
     let x0 = (t[j] - mean) / std;
@@ -157,11 +180,11 @@ pub fn lb_keogh_cumulative(
     len: usize,
     mean: f64,
     std: f64,
+    best_so_far: f64,
 ) -> f64 {
     let mut lb: f64 = 0.0;
     let mut x;
     let mut d;
-    let best_so_far = f64::MAX;
 
     for i in 0..len {
         if lb < best_so_far {
@@ -197,12 +220,12 @@ pub fn lb_keogh_data_cumulative(
     len: usize,
     mean: f64,
     std: f64,
+    best_so_far: f64,
 ) -> f64 {
     let mut lb = 0.0;
     let mut uu;
     let mut ll;
     let mut d;
-    let best_so_far = f64::MAX;
 
     for i in 0..len {
         if lb < best_so_far {
@@ -225,23 +248,29 @@ pub fn lb_keogh_data_cumulative(
 /// A,B: data and query, respectively
 /// cb : cummulative bound used for early abandoning
 /// r  : size of Sakoe-Chiba warpping band
-pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize) -> f64 {
-    let best_so_far = f64::MAX;
+pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize, best_so_far: f64) -> (f64, f64) {
     let mut cost_tmp;
     let mut k = 0;
     let (mut x, mut y, mut z, mut min_cost);
 
+    warn!("best_so_far: {}", best_so_far);
+    warn!("k: {}", k);
+    //warn!("A: {:?}", A);
+    //warn!("B: {:?}", B);
+    //warn!("cb: {:?}", cb);
+    warn!("r: {}", r);
+    warn!("m: {}", m);
+
     // Instead of using matrix of size O(m^2) or O(mr), we will reuse two array of size O(r).
 
-    let mut cost = Array::<f64, Ix1>::from_elem(2 * r + 1, f64::MAX);
+    let mut cost = Array::<f64, Ix1>::from_elem(2 * r + 1, UCR_INF);
     let mut cost_prev = cost.clone();
 
     for i in 0..m {
-        min_cost = f64::MAX;
         k = r.saturating_sub(i);
+        min_cost = UCR_INF;
 
-        let mut j = i.saturating_sub(r);
-        while j <= usize::min(m - 1, i + r) {
+        for j in i.saturating_sub(r)..(usize::min(m - 1, i + r) + 1) {
             // Initialize all row and column
             if (i == 0) && (j == 0) {
                 cost[k] = dist(A[0], B[0]);
@@ -250,17 +279,17 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize) -> f64 {
             }
 
             if (j < 1) || (k < 1) {
-                y = f64::MAX;
+                y = UCR_INF;
             } else {
                 y = cost[k - 1];
             }
             if (i < 1) || (k + 1 > 2 * r) {
-                x = f64::MAX;
+                x = UCR_INF;
             } else {
                 x = cost_prev[k + 1];
             }
             if (i < 1) || (j < 1) {
-                z = f64::MAX;
+                z = UCR_INF;
             } else {
                 z = cost_prev[k];
             }
@@ -272,7 +301,6 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize) -> f64 {
             if cost[k] < min_cost {
                 min_cost = cost[k];
             }
-            j += 1;
             k += 1;
         }
 
@@ -280,7 +308,7 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize) -> f64 {
         if i + r < m - 1 && min_cost + cb[i + r + 1] >= best_so_far {
             //free(cost);
             //free(cost_prev);
-            return min_cost + cb[i + r + 1];
+            return (min_cost + cb[i + r + 1], best_so_far);
         }
 
         // Move current array to previous array.
@@ -293,7 +321,7 @@ pub fn dtw(A: &[f64], B: &[f64], cb: &[f64], m: usize, r: usize) -> f64 {
     // the DTW distance is in the last cell in the matrix of size O(m^2) or at the middle of our array.
     //free(cost);
     //free(cost_prev);
-    cost_prev[k]
+    (cost_prev[k], best_so_far)
 }
 
 /// Print function for debugging

@@ -8,11 +8,10 @@ use ndarray_stats::DeviationExt;
 use num_traits::{cast::ToPrimitive, sign::Signed};
 use std::fs::File;
 use std::io::prelude::*;
-use std::io::Cursor;
-use std::io::{BufRead, BufReader};
 
 pub mod naive;
 pub mod ucr;
+pub mod ucr_fixed;
 
 // Calculate the L2 distance (euclidian distance) for a vector
 pub fn l2_dist<T, A, D>(a: &ArrayBase<T, D>, b: &ArrayBase<T, D>) -> f64
