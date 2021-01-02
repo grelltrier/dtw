@@ -220,7 +220,6 @@ impl Trillion {
         let mut lb = 0.0;
         let mut jump = order[0];
 
-        // TODO: The C implementation repeats this loop 'len' times
         for i in 0..order.len() {
             uu = (u[j + order[i]] - mean) / std;
             ll = (l[j + order[i]] - mean) / std;
@@ -245,17 +244,10 @@ impl Trillion {
     }
 
     /// Calculate Dynamic Time Wrapping distance
-    /// A,B: data and query, respectively
+    /// a_seq, b_seq: data and query, respectively
     /// cb : cummulative bound used for early abandoning
     /// r  : size of Sakoe-Chiba warpping band
-    pub fn dtw(
-        a_seq: &[f64],
-        b_seq: &[f64],
-        cb: &[f64],
-        //m: usize, // This argument is added in the C implementation
-        r: usize,
-        bsf: Option<f64>,
-    ) -> f64 {
+    pub fn dtw(a_seq: &[f64], b_seq: &[f64], cb: &[f64], r: usize, bsf: Option<f64>) -> f64 {
         let bsf = bsf.unwrap_or(f64::INFINITY);
         let mut cost_tmp;
         let (mut x, mut y, mut z, mut min_cost);
@@ -266,7 +258,6 @@ impl Trillion {
         let mut cost_prev = cost.clone();
         let mut k = 0;
 
-        // TODO: The C implementation calls this m times
         for i in 0..a_seq_len {
             k = r.saturating_sub(i);
             min_cost = f64::INFINITY;
@@ -274,9 +265,9 @@ impl Trillion {
             for j in i.saturating_sub(r)..(usize::min(a_seq_len - 1, i + r) + 1) {
                 // Initialize all row and column
                 if (i == 0) && (j == 0) {
-                    cost[k] = dist(a_seq[0], b_seq[0]); // TODO: Calculation of dist should be possible to move out of the loop since it is independent of i and j
+                    cost[k] = dist(a_seq[0], b_seq[0]);
                     min_cost = cost[k];
-                    k += 1; // TODO: This should be necessary, double check with C implementation
+                    k += 1;
                     continue;
                 }
 
@@ -308,7 +299,7 @@ impl Trillion {
 
             // We can abandon early if the current cummulative distace with lower bound together are larger than bsf
             if i + r < a_seq_len - 1 && min_cost + cb[i + r + 1] >= bsf {
-                return min_cost + cb[i + r + 1]; // TODO: C implementation returns the bsf as well
+                return min_cost + cb[i + r + 1];
             }
 
             // Move current array to previous array.
@@ -319,7 +310,7 @@ impl Trillion {
         k -= 1;
 
         // the DTW distance is in the last cell in the matrix of size O(m^2) or at the middle of our array.
-        cost_prev[k] // TODO: C implementation returns the bsf as well
+        cost_prev[k]
     }
 
     pub fn calculate(
@@ -334,13 +325,7 @@ impl Trillion {
         let (mut jump_times, mut kim, mut keogh, mut keogh2) = (0, 0, 0, 0);
         let (mut ex, mut ex2) = (0.0, 0.0);
         let mut bsf = f64::INFINITY;
-
-        // Variables not initialized in Ruby implementation
         let mut q: Vec<f64> = Vec::new();
-
-        // Initialized by Ruby implementation
-        //dist = lb_kim = lb_k = lb_k2 = 0.0
-        //i = j = 0
 
         // start the clock
         let time_start = Instant::now();
@@ -429,17 +414,13 @@ impl Trillion {
         // Create a reader/iterator to get the data from
         let mut data_container = utilities::DataContainer::new(data_name);
 
-        // ################# UP TO HERE EVERY VARIABLE IS THE SAME BETWEEN RUBY AND RUST ########################
-
         while !done {
             // Read first m-1 points
             if it == 0 {
                 for k in 0..(q.len() - 1) {
                     if let Some(data) = data_container.next() {
                         buffer[k] = data;
-                    } /*else {
-                          break;
-                      }*/
+                    }
                 }
             } else {
                 for k in 0..q.len() - 1 {
@@ -470,7 +451,7 @@ impl Trillion {
 
                 ex = 0.0;
                 ex2 = 0.0;
-                let mut jump = 0;
+                let mut jump: usize = 0;
 
                 // Do main task here..
                 for i in 0..ep {
@@ -487,10 +468,7 @@ impl Trillion {
                     // Double the size for avoiding using modulo "%" operator
                     t[(i % q.len()) + q.len()] = d;
 
-                    // TODO: This could probably be a saturable substraction istead
-                    if jump > 0 {
-                        jump -= 1
-                    }
+                    jump = jump.saturating_sub(1);
 
                     // Start the task when there are more than m-1 points in the current chunk
                     if i >= q.len() - 1 {
