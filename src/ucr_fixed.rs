@@ -423,8 +423,7 @@ impl Trillion {
         let mut cb1 = cb.clone();
         let mut cb2 = cb.clone();
 
-        let (mut i, mut j) = (0, 0); // i: the current index of the data in current chunk of size EPOCH
-                                     // j: the starting index of the data in the circular array t
+        let mut j; // j: the starting index of the data in the circular array t
         let (mut ex, mut ex2) = (0.0, 0.0);
         let mut done = false;
         let mut it = 0;
@@ -497,6 +496,7 @@ impl Trillion {
                     // Double the size for avoiding using modulo "%" operator
                     t[(i % q.len()) + q.len()] = d;
 
+                    // TODO: This could probably be a saturable substraction istead
                     if jump > 0 {
                         jump -= 1
                     }
@@ -514,12 +514,13 @@ impl Trillion {
                             let i_cap = i - (q.len() - 1);
 
                             // Use a constant lower bound to prune the obvious subsequence
-                            let (lb_kim, jump) =
+                            let (lb_kim, jump_tmp) =
                                 Self::lb_kim_hierarchy(&t, &q, j, mean, std, Some(bsf));
+                            jump = jump_tmp;
 
                             //////
                             if lb_kim < bsf {
-                                let (lb_k, jump) = Self::lb_keogh_cumulative(
+                                let (lb_k, jump_tmp) = Self::lb_keogh_cumulative(
                                     &order,
                                     &t,
                                     &uo,
@@ -531,9 +532,10 @@ impl Trillion {
                                     std,
                                     Some(bsf),
                                 );
+                                jump = jump_tmp;
 
                                 if lb_k < bsf {
-                                    let (lb_k2, jump) = Trillion::lb_keogh_data_cumulative(
+                                    let (lb_k2, jump_tmp) = Trillion::lb_keogh_data_cumulative(
                                         &order,
                                         &qo,
                                         &mut cb2[..],
@@ -544,6 +546,7 @@ impl Trillion {
                                         std,
                                         Some(bsf),
                                     );
+                                    jump = jump_tmp;
 
                                     if lb_k2 < bsf {
                                         {
@@ -609,12 +612,11 @@ impl Trillion {
         }
 
         let time_end = Instant::now();
-        println!();
+        let i = it * (EPOCH - q.len() + 1) + ep;
 
-        // Note that loc and i are long long.
+        println!();
         println!("Location : {}", loc);
         println!("Distance : {}", f64::sqrt(bsf));
-        i = it * (EPOCH - q.len() + 1) + ep;
         println!("Data Scanned : {}", i);
         println!(
             "Total Execution Time : {:?}",
