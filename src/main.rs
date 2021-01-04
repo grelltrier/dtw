@@ -8,10 +8,16 @@ fn main() {
     // Input parameters
     let data_name = "Data.txt";
     let query_name = "Query2.txt";
-    // let window_rate = 0.10;
-    // let sort = true;
-    // let dont_jump = false;
 
     let settings = Settings::default();
-    Trillion::calculate(data_name, query_name, settings);
+    /*let settings = Settings::new(
+        true,   // jump
+        false,  // sort:
+        true,   // normalize:
+        0.10,   // window_rate:
+        100000, // epoch:
+    );*/
+    let mut trillion = Trillion::new(data_name, query_name, settings);
+    trillion.calculate();
+    trillion.print();
 }

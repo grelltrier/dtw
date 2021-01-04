@@ -4,10 +4,11 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use super::*;
 
+#[derive(Copy, Clone, Debug)]
 pub struct Settings {
     jump: bool,
     sort: bool,
@@ -48,9 +49,80 @@ fn dist(x: f64, y: f64) -> f64 {
     (x - y).powi(2)
 }
 
-pub struct Trillion;
+#[derive(Copy, Clone, Debug)]
+struct CalcResult {
+    loc: usize,
+    bsf: f64,
+    duration: Duration,
+    i: usize,
+    supplemental_stats: Option<UCRStats>,
+}
+
+#[derive(Copy, Clone, Debug)]
+struct UCRStats {
+    jump_times: usize,
+    kim: f64,
+    keogh: f64,
+    keogh2: f64,
+}
+impl UCRStats {
+    fn print(&self, i: f64) {
+        println!(
+            "Pruned by Jump      : {:.4}%",
+            (self.jump_times as f64 / i) * 100.0
+        );
+        println!("Pruned by LB_Kim    : {:.4}%", (self.kim / i) * 100.0);
+        println!("Pruned by LB_Keogh  : {:.4}%", (self.keogh / i) * 100.0);
+        println!("Pruned by LB_Keogh2 : {:.4}%", (self.keogh2 / i) * 100.0);
+        println!(
+            "DTW Calculation     : {:.4}%",
+            100.0 - ((self.jump_times as f64 + self.kim + self.keogh + self.keogh2) / i * 100.0)
+        );
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct Trillion {
+    target: (String, String),
+    result: Option<CalcResult>,
+    settings: Settings,
+}
 
 impl Trillion {
+    pub fn new(data_name: &str, query_name: &str, settings: Settings) -> Self {
+        Self {
+            target: (data_name.to_owned(), query_name.to_owned()),
+            result: None,
+            settings,
+        }
+    }
+    pub fn print(&self) {
+        if let Some(result) = self.result {
+            println!();
+            println!("Location : {}", result.loc);
+            println!("Distance : {}", f64::sqrt(result.bsf));
+            println!("Data Scanned : {}", result.i);
+            println!("Total Execution Time : {:?}", result.duration);
+            println!();
+
+            // Print additional stats about pruning
+            if let Some(stats) = result.supplemental_stats {
+                stats.print(result.i as f64);
+            }
+
+            // This is just for testing
+            // Throws an error to easily see when the calculation is wrong
+            if result.loc != 430264 {
+                error!("Location should be 430264 but it is {}", result.loc);
+            }
+            if (3.790699169990 - f64::sqrt(result.bsf)).abs() > 0.000000000001 {
+                error!(
+                    "Distance should be 3.79069 but it is {:.4}",
+                    f64::sqrt(result.bsf)
+                );
+            }
+        }
+    }
     fn upper_lower_lemire(query: &[f64], len: usize, r: usize) -> (Vec<f64>, Vec<f64>) {
         let mut upper = vec![0.0; len];
         let mut lower = upper.clone();
@@ -104,7 +176,7 @@ impl Trillion {
         (lower, upper)
     }
 
-    pub fn lb_kim_hierarchy(
+    fn lb_kim_hierarchy(
         t: &[f64],
         q: &[f64],
         j: usize,
@@ -187,7 +259,7 @@ impl Trillion {
     /// uo, lo: upper and lower envelops for the query, which already sorted.
     /// j     : index of the starting location in t
     /// cb    : (output) current bound at each position. It will be used later for early abandoning in DTW.
-    pub fn lb_keogh_cumulative(
+    fn lb_keogh_cumulative(
         order: &[usize],
         t: &[f64],
         uo: &[f64],
@@ -237,7 +309,7 @@ impl Trillion {
     /// qo: sorted query
     /// cb: (output) current bound at each position. Used later for early abandoning in DTW.
     /// l,u: lower and upper envelop of the current data
-    pub fn lb_keogh_data_cumulative(
+    fn lb_keogh_data_cumulative(
         order: &[usize],
         qo: &[f64],
         cb: &mut [f64],
@@ -284,7 +356,7 @@ impl Trillion {
     /// a_seq, b_seq: data and query, respectively
     /// cb : cummulative bound used for early abandoning
     /// r  : size of Sakoe-Chiba warpping band
-    pub fn dtw(a_seq: &[f64], b_seq: &[f64], cb: &[f64], r: usize, bsf: f64) -> f64 {
+    fn dtw(a_seq: &[f64], b_seq: &[f64], cb: &[f64], r: usize, bsf: f64) -> f64 {
         //let bsf = bsf.unwrap_or(f64::INFINITY);
         let mut cost_tmp;
         let (mut x, mut y, mut z, mut min_cost);
@@ -398,20 +470,21 @@ impl Trillion {
         cost_prev[a_seq_len - 1]
     }
 
-    pub fn calculate(data_name: &str, query_name: &str, settings: Settings) {
+    pub fn calculate(&mut self) {
+        let (data_name, query_name) = &self.target;
         let Settings {
             window_rate,
             sort,
             normalize,
             jump,
             epoch,
-        } = settings;
+        } = self.settings;
 
+        let mut query: Vec<f64> = Vec::new();
         let mut loc = 0;
         let (mut jump_times, mut kim, mut keogh, mut keogh2) = (0, 0, 0, 0);
         let (mut ex, mut ex2) = (0.0, 0.0);
         let mut bsf = f64::INFINITY;
-        let mut q: Vec<f64> = Vec::new();
 
         // start the clock
         let time_start = Instant::now();
@@ -427,33 +500,36 @@ impl Trillion {
             buf.clear();
             ex += d;
             ex2 += d.powi(2);
-            q.push(d);
+            query.push(d);
         }
 
         // Do z-normalize the query, keep in same array, q
-        let mut mean = ex / q.len() as f64;
-        let mut std = f64::sqrt((ex2 / q.len() as f64) - mean.powi(2));
+        let mut mean = ex / query.len() as f64;
+        let mut std = f64::sqrt((ex2 / query.len() as f64) - mean.powi(2));
 
         if normalize {
-            q = q.iter_mut().map(|entry| (*entry - mean) / std).collect();
+            query = query
+                .iter_mut()
+                .map(|entry| (*entry - mean) / std)
+                .collect();
         }
 
         // TODO: This is done differently in C implementation, double check it
-        // r  : size of Sakoe-Chiba warpping band
-        let r = if window_rate <= 1.0 {
-            (window_rate * q.len() as f64).floor()
+        // sakoe_chiba_band  : size of Sakoe-Chiba warpping band
+        let sakoe_chiba_band = if window_rate <= 1.0 {
+            (window_rate * query.len() as f64).floor() as usize
         } else {
-            window_rate.floor()
+            window_rate.floor() as usize
         };
-        let r = r as usize;
 
-        // Create envelope of the query: lower envelop, l, and upper envelop, u
-        let (l, u) = Self::upper_lower_lemire(&q, q.len(), r);
+        // Create envelope of the query
+        let (lower_envelop, upper_envelop) =
+            Self::upper_lower_lemire(&query, query.len(), sakoe_chiba_band);
 
-        // Add the index to each query point
-        let mut q_tmp: Vec<(usize, f64)> = Vec::new();
-        for (i, q_point) in q.iter().enumerate() {
-            q_tmp.push((i, *q_point));
+        // Add the index to each query entry
+        let mut indexed_query: Vec<(usize, f64)> = Vec::new();
+        for (idx, query_entry) in query.iter().enumerate() {
+            indexed_query.push((idx, *query_entry));
         }
 
         // Create more arrays for keeping the (sorted) envelop
@@ -463,29 +539,29 @@ impl Trillion {
         let mut lo: Vec<f64> = Vec::new();
 
         if sort {
-            q_tmp.sort_by(|a, b| {
+            indexed_query.sort_by(|a, b| {
                 (b.1.abs())
                     .partial_cmp(&a.1.abs())
                     .unwrap_or(Ordering::Equal)
             });
 
-            q_tmp.iter().for_each(|x| {
+            indexed_query.iter().for_each(|x| {
                 order.push(x.0);
-                qo.push(q[x.0]);
-                uo.push(u[x.0]);
-                lo.push(l[x.0]);
+                qo.push(query[x.0]);
+                uo.push(upper_envelop[x.0]);
+                lo.push(lower_envelop[x.0]);
             })
         } else {
-            for i in 0..q.len() {
+            for i in 0..query.len() {
                 order.push(i);
             }
-            qo = q.clone();
-            uo = u.clone();
-            lo = l.clone();
+            qo = query.clone();
+            uo = upper_envelop;
+            lo = lower_envelop;
         }
 
-        // Initial the cummulative lower bound
-        let mut cb = vec![0.0; q.len()];
+        // Initialize the cummulative lower bound
+        let mut cb = vec![0.0; query.len()];
         let mut cb1 = cb.clone();
         let mut cb2 = cb.clone();
 
@@ -493,32 +569,31 @@ impl Trillion {
         let mut done = false;
         let mut it = 0;
         let mut ep = 0;
-        // let k = 0; Never used
 
         let mut buffer: Vec<f64> = vec![0.0; epoch];
-        let mut t: Vec<f64> = vec![0.0; q.len() * 2];
-        let mut tz: Vec<f64> = Vec::new();
-        tz.reserve(q.len());
+        let mut t: Vec<f64> = vec![0.0; query.len() * 2];
+        let mut tz: Vec<f64> = Vec::new(); // z-normalized candidate sequence
+        tz.reserve(query.len());
 
         // Create a reader/iterator to get the data from
-        let mut data_container = utilities::DataContainer::new(data_name);
+        let mut data_container = utilities::DataContainer::new(&data_name);
 
         while !done {
             // Read first m-1 points
             if it == 0 {
-                for k in 0..(q.len() - 1) {
+                for k in 0..(query.len() - 1) {
                     if let Some(data) = data_container.next() {
                         buffer[k] = data;
                     }
                 }
             } else {
-                for k in 0..q.len() - 1 {
-                    buffer[k] = buffer[epoch - q.len() + 1 + k];
+                for k in 0..(query.len() - 1) {
+                    buffer[k] = buffer[epoch - query.len() + 1 + k];
                 }
             }
 
             // Read buffer of size EPOCH or when all data has been read.
-            ep = q.len() - 1;
+            ep = query.len() - 1;
             while ep < epoch {
                 if let Some(data) = data_container.next() {
                     buffer[ep] = data;
@@ -528,13 +603,13 @@ impl Trillion {
                 }
             }
 
-            if ep < q.len() {
+            if ep < query.len() {
                 done = true;
             } else {
-                let (l_buff, u_buff) = Self::upper_lower_lemire(&buffer, ep, r);
+                let (l_buff, u_buff) = Self::upper_lower_lemire(&buffer, ep, sakoe_chiba_band);
 
                 // Just for printing a dot for approximate a million point. Not much accurate.
-                if it % (1000000 / (epoch - q.len() + 1)) == 0 {
+                if it % (1000000 / (epoch - query.len() + 1)) == 0 {
                     print!(".");
                 }
 
@@ -545,36 +620,36 @@ impl Trillion {
                 // Do main task here..
                 for i in 0..ep {
                     // A bunch of data has been read and pick one of them at a time to use
-                    let d = buffer[i];
+                    let data = buffer[i];
 
                     // Calcualte sum and sum square
-                    ex += d;
-                    ex2 += d.powi(2);
+                    ex += data;
+                    ex2 += data.powi(2);
 
                     // t is a circular array for keeping current data
-                    t[i % q.len()] = d;
+                    t[i % query.len()] = data;
 
                     // Double the size for avoiding using modulo "%" operator
-                    t[(i % q.len()) + q.len()] = d;
+                    t[(i % query.len()) + query.len()] = data;
 
                     jump_size = jump_size.saturating_sub(1);
 
                     // Start the task when there are more than m-1 points in the current chunk
-                    if i >= q.len() - 1 {
+                    if i >= query.len() - 1 {
                         // compute the start location of the data in the current circular array, t
-                        j = (i + 1) % q.len();
+                        j = (i + 1) % query.len();
 
                         if !jump || jump_size == 0 {
-                            mean = ex / q.len() as f64;
-                            std = f64::sqrt((ex2 / q.len() as f64) - mean.powi(2));
+                            mean = ex / query.len() as f64;
+                            std = f64::sqrt((ex2 / query.len() as f64) - mean.powi(2));
 
                             // the start location of the data in the current chunk
-                            let i_cap = i - (q.len() - 1);
+                            let i_cap = i - (query.len() - 1);
 
                             // Use a constant lower bound to prune the obvious subsequence
-                            let (lb_kim, jump_tmp) =
-                                Self::lb_kim_hierarchy(&t, &q, j, mean, std, bsf);
-                            jump_size = jump_tmp;
+                            let (lb_kim, jump_size_tmp) =
+                                Self::lb_kim_hierarchy(&t, &query, j, mean, std, bsf);
+                            jump_size = jump_size_tmp;
 
                             //////
                             if lb_kim < bsf {
@@ -585,7 +660,7 @@ impl Trillion {
                                     &lo,
                                     &mut cb1[..],
                                     j,
-                                    q.len(),
+                                    query.len(),
                                     mean,
                                     std,
                                     bsf,
@@ -611,36 +686,37 @@ impl Trillion {
                                             // Choose better lower bound between lb_keogh and lb_keogh2 to be used in early abandoning DTW
                                             // Note that cb and cb2 will be cumulative summed here.
                                             if lb_k > lb_k2 {
-                                                cb[q.len() - 1] = cb1[q.len() - 1];
-                                                for k in (0..q.len() - 1).rev() {
+                                                cb[query.len() - 1] = cb1[query.len() - 1];
+                                                for k in (0..query.len() - 1).rev() {
                                                     cb[k] = cb[k + 1] + cb1[k];
                                                 }
                                             } else {
-                                                cb[q.len() - 1] = cb2[q.len() - 1];
-                                                for k in (0..q.len() - 1).rev() {
+                                                cb[query.len() - 1] = cb2[query.len() - 1];
+                                                for k in (0..query.len() - 1).rev() {
                                                     cb[k] = cb[k + 1] + cb2[k];
                                                 }
                                             }
 
                                             // Take another linear time to compute z_normalization of t.
                                             // Note that for better optimization, this can merge to the previous function.
-
                                             if normalize {
                                                 tz = t
                                                     .iter_mut()
                                                     .skip(j)
-                                                    .take(q.len())
+                                                    .take(query.len())
                                                     .map(|entry| (*entry - mean) / std)
                                                     .collect();
                                             }
 
-                                            let dist = Self::dtw(&tz, &q, &cb, r, bsf);
+                                            let dist =
+                                                Self::dtw(&tz, &query, &cb, sakoe_chiba_band, bsf);
 
                                             if dist < bsf {
                                                 // Update bsf
                                                 // loc is the real starting location of the nearest neighbor in the file
                                                 bsf = dist;
-                                                loc = it * (epoch - q.len() + 1) + i + 1 - q.len();
+                                                loc = it * (epoch - query.len() + 1) + i + 1
+                                                    - query.len();
                                             }
                                         }
                                     } else {
@@ -671,39 +747,24 @@ impl Trillion {
         }
 
         let time_end = Instant::now();
-        let i = it * (epoch - q.len() + 1) + ep;
-
-        println!();
-        println!("Location : {}", loc);
-        println!("Distance : {}", f64::sqrt(bsf));
-        println!("Data Scanned : {}", i);
-        println!(
-            "Total Execution Time : {:?}",
-            time_end.saturating_duration_since(time_start)
-        );
-
-        // Convert to f64 so the following calculations are not rounded to 0
-        let i = i as f64;
-        let jump_times = jump_times as f64;
+        let duration = time_end.saturating_duration_since(time_start);
+        let i = it * (epoch - query.len() + 1) + ep;
         let kim = kim as f64;
         let keogh = keogh as f64;
         let keogh2 = keogh2 as f64;
 
-        println!();
-        println!("Pruned by Jump      : {:.4}%", (jump_times / i) * 100.0);
-        println!("Pruned by LB_Kim    : {:.4}%", (kim / i) * 100.0);
-        println!("Pruned by LB_Keogh  : {:.4}%", (keogh / i) * 100.0);
-        println!("Pruned by LB_Keogh2 : {:.4}%", (keogh2 / i) * 100.0);
-        println!(
-            "DTW Calculation     : {:.4}%",
-            100.0 - ((jump_times + kim + keogh + keogh2) / i * 100.0)
-        );
-
-        if loc != 430264 {
-            error!("Location should be 430264 but it is {}", loc);
-        }
-        if (3.790699169990 - f64::sqrt(bsf)).abs() > 0.000000000001 {
-            error!("Distance should be 3.79069 but it is {:.4}", f64::sqrt(bsf));
-        }
+        let supplemental_stats = Some(UCRStats {
+            jump_times,
+            kim,
+            keogh,
+            keogh2,
+        });
+        self.result = Some(CalcResult {
+            loc,
+            bsf,
+            duration,
+            i,
+            supplemental_stats,
+        });
     }
 }
