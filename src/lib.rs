@@ -11,7 +11,6 @@ use std::io::prelude::*;
 
 pub mod naive;
 pub mod ucr;
-pub mod ucr_fixed;
 
 // Calculate the L2 distance (euclidian distance) for a vector
 pub fn l2_dist<T, A, D>(a: &ArrayBase<T, D>, b: &ArrayBase<T, D>) -> f64

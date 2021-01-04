@@ -1,4 +1,4 @@
-use dtw::ucr_fixed::*;
+use dtw::ucr::*;
 
 // Working main function to try with naive implementation
 fn main() {
