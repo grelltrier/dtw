@@ -8,9 +8,10 @@ fn main() {
     // Input parameters
     let data_name = "Data.txt";
     let query_name = "Query2.txt";
-    let window_rate = 0.10;
-    let sort = true;
-    let dont_jump = false;
+    // let window_rate = 0.10;
+    // let sort = true;
+    // let dont_jump = false;
 
-    Trillion::calculate(data_name, query_name, window_rate, sort, dont_jump);
+    let settings = Settings::default();
+    Trillion::calculate(data_name, query_name, settings);
 }

@@ -8,6 +8,42 @@ use std::time::Instant;
 
 use super::*;
 
+pub struct Settings {
+    jump: bool,
+    sort: bool,
+    normalize: bool,
+    window_rate: f64,
+    epoch: usize,
+}
+impl Settings {
+    pub fn new(
+        jump: bool,
+        sort: bool,
+        normalize: bool,
+        window_rate: f64,
+        epoch: usize,
+    ) -> Settings {
+        Settings {
+            jump,
+            sort,
+            normalize,
+            window_rate,
+            epoch,
+        }
+    }
+}
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            jump: true,
+            sort: true,
+            normalize: true,
+            window_rate: 0.1,
+            epoch: 100000,
+        }
+    }
+}
+
 fn dist(x: f64, y: f64) -> f64 {
     (x - y).powi(2)
 }
@@ -253,74 +289,123 @@ impl Trillion {
         let (mut x, mut y, mut z, mut min_cost);
         let a_seq_len = a_seq.len();
 
-        // Instead of using matrix of size O(m^2) or O(mr), we will reuse two array of size O(r).
-        let mut cost = Array::<f64, Ix1>::from_elem(2 * r + 1, f64::INFINITY);
+        // Instead of using matrix of size O(m^2) or O(mr), we will reuse two array of size O(a_seq_len).
+        let mut cost = Array::<f64, Ix1>::from_elem(a_seq_len, f64::INFINITY);
         let mut cost_prev = cost.clone();
-        let mut k = 0;
+
+        // Variables to implement the pruning - PrunedDTW
+        let mut sc = 0;
+        let mut ec = 0;
+        let mut next_ec;
+        let mut lp = 0; // lp stands for last pruning
+                        // TODO: Should this be initialized to 0? UCR_USP_suite does not intialize it at all it seems?
+        let mut ub = bsf - cb[r + 1];
+        let mut found_sc: bool;
+        let mut pruned_ec = false;
+        let mut ini_j;
 
         for i in 0..a_seq_len {
-            k = r.saturating_sub(i);
+            // k = r.saturating_sub(i);
             min_cost = f64::INFINITY;
 
-            for j in i.saturating_sub(r)..(usize::min(a_seq_len - 1, i + r) + 1) {
+            found_sc = false;
+            pruned_ec = false;
+            next_ec = i + r + 1;
+
+            ini_j = usize::max(i.saturating_sub(r), sc);
+
+            for j in ini_j..(usize::min(a_seq_len - 1, i + r) + 1) {
                 // Initialize all row and column
                 if (i == 0) && (j == 0) {
-                    cost[k] = dist(a_seq[0], b_seq[0]);
-                    min_cost = cost[k];
-                    k += 1;
+                    cost[j] = dist(a_seq[0], b_seq[0]);
+                    min_cost = cost[j];
+                    found_sc = true;
                     continue;
                 }
 
-                if (j < 1) || (k < 1) {
+                if j == ini_j {
                     y = f64::INFINITY;
                 } else {
-                    y = cost[k - 1];
+                    y = cost[j - 1];
                 }
-                if (i < 1) || (k + 1 > 2 * r) {
+                if (i == 0) || (j == i + r) || (j >= lp) {
                     x = f64::INFINITY;
                 } else {
-                    x = cost_prev[k + 1];
+                    x = cost_prev[j];
                 }
-                if (i < 1) || (j < 1) {
+                if (i == 0) || (j == 0) || (j > lp) {
                     z = f64::INFINITY;
                 } else {
-                    z = cost_prev[k];
+                    z = cost_prev[j - 1];
                 }
 
                 // Classic DTW calculation
-                cost[k] = f64::min(f64::min(x, y), z) + dist(a_seq[i], b_seq[j]);
+                cost[j] = f64::min(f64::min(x, y), z) + dist(a_seq[i], b_seq[j]);
 
                 // Find minimum cost in row for early abandoning (possibly to use column instead of row).
-                if cost[k] < min_cost {
-                    min_cost = cost[k];
+                if cost[j] < min_cost {
+                    min_cost = cost[j];
                 }
-                k += 1;
+
+                // Pruning criteria
+                if !found_sc && cost[j] <= ub {
+                    sc = j;
+                    found_sc = true;
+                }
+
+                if cost[j] > ub {
+                    if j > ec {
+                        lp = j;
+                        pruned_ec = true;
+                        break;
+                    }
+                } else {
+                    next_ec = j + 1;
+                }
             }
 
-            // We can abandon early if the current cummulative distace with lower bound together are larger than bsf
-            if i + r < a_seq_len - 1 && min_cost + cb[i + r + 1] >= bsf {
-                return min_cost + cb[i + r + 1];
+            if i + r < a_seq_len - 1 {
+                ub = bsf - cb[i + r + 1];
+                // We can abandon early if the current cummulative distace with lower bound together are larger than bsf
+                if min_cost + cb[i + r + 1] >= bsf {
+                    return f64::INFINITY;
+                }
             }
 
             // Move current array to previous array.
             cost_tmp = cost;
             cost = cost_prev;
             cost_prev = cost_tmp;
+
+            if sc > 0 {
+                cost_prev[sc - 1] = f64::INFINITY;
+            }
+
+            if !pruned_ec {
+                lp = i + r + 1;
+            }
+
+            ec = next_ec;
         }
-        k -= 1;
+
+        // If pruned in the last row
+        if pruned_ec {
+            cost_prev[a_seq_len - 1] = f64::INFINITY;
+        }
 
         // the DTW distance is in the last cell in the matrix of size O(m^2) or at the middle of our array.
-        cost_prev[k]
+        cost_prev[a_seq_len - 1]
     }
 
-    pub fn calculate(
-        data_name: &str,
-        query_name: &str,
-        window_rate: f64,
-        sort: bool,
-        dont_jump: bool,
-    ) {
-        let epoch = 100000;
+    pub fn calculate(data_name: &str, query_name: &str, settings: Settings) {
+        let Settings {
+            window_rate,
+            sort,
+            normalize,
+            jump,
+            epoch,
+        } = settings;
+
         let mut loc = 0;
         let (mut jump_times, mut kim, mut keogh, mut keogh2) = (0, 0, 0, 0);
         let (mut ex, mut ex2) = (0.0, 0.0);
@@ -347,7 +432,10 @@ impl Trillion {
         // Do z-normalize the query, keep in same array, q
         let mut mean = ex / q.len() as f64;
         let mut std = f64::sqrt((ex2 / q.len() as f64) - mean.powi(2));
-        let q: Vec<f64> = q.iter_mut().map(|entry| (*entry - mean) / std).collect();
+
+        if normalize {
+            q = q.iter_mut().map(|entry| (*entry - mean) / std).collect();
+        }
 
         // TODO: This is done differently in C implementation, double check it
         // r  : size of Sakoe-Chiba warpping band
@@ -451,7 +539,7 @@ impl Trillion {
 
                 ex = 0.0;
                 ex2 = 0.0;
-                let mut jump: usize = 0;
+                let mut jump_size: usize = 0;
 
                 // Do main task here..
                 for i in 0..ep {
@@ -468,14 +556,14 @@ impl Trillion {
                     // Double the size for avoiding using modulo "%" operator
                     t[(i % q.len()) + q.len()] = d;
 
-                    jump = jump.saturating_sub(1);
+                    jump_size = jump_size.saturating_sub(1);
 
                     // Start the task when there are more than m-1 points in the current chunk
                     if i >= q.len() - 1 {
                         // compute the start location of the data in the current circular array, t
                         j = (i + 1) % q.len();
 
-                        if dont_jump || jump <= 0 {
+                        if !jump || jump_size == 0 {
                             mean = ex / q.len() as f64;
                             std = f64::sqrt((ex2 / q.len() as f64) - mean.powi(2));
 
@@ -485,7 +573,7 @@ impl Trillion {
                             // Use a constant lower bound to prune the obvious subsequence
                             let (lb_kim, jump_tmp) =
                                 Self::lb_kim_hierarchy(&t, &q, j, mean, std, Some(bsf));
-                            jump = jump_tmp;
+                            jump_size = jump_tmp;
 
                             //////
                             if lb_kim < bsf {
@@ -501,7 +589,7 @@ impl Trillion {
                                     std,
                                     Some(bsf),
                                 );
-                                jump = jump_tmp;
+                                jump_size = jump_tmp;
 
                                 if lb_k < bsf {
                                     let (lb_k2, jump_tmp) = Trillion::lb_keogh_data_cumulative(
@@ -515,7 +603,7 @@ impl Trillion {
                                         std,
                                         Some(bsf),
                                     );
-                                    jump = jump_tmp;
+                                    jump_size = jump_tmp;
 
                                     if lb_k2 < bsf {
                                         {
@@ -536,12 +624,14 @@ impl Trillion {
                                             // Take another linear time to compute z_normalization of t.
                                             // Note that for better optimization, this can merge to the previous function.
 
-                                            tz = t
-                                                .iter_mut()
-                                                .skip(j)
-                                                .take(q.len())
-                                                .map(|entry| (*entry - mean) / std)
-                                                .collect();
+                                            if normalize {
+                                                tz = t
+                                                    .iter_mut()
+                                                    .skip(j)
+                                                    .take(q.len())
+                                                    .map(|entry| (*entry - mean) / std)
+                                                    .collect();
+                                            }
 
                                             let dist = Self::dtw(&tz, &q, &cb, r, Some(bsf));
 
