@@ -1,4 +1,4 @@
-use ndarray::prelude::*;
+// use ndarray::prelude::*;
 use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fs::File;
@@ -7,6 +7,7 @@ use std::io::BufReader;
 use std::time::{Duration, Instant};
 
 use super::*;
+mod structs;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Settings {
@@ -47,6 +48,31 @@ impl Default for Settings {
 
 fn dist(x: f64, y: f64) -> f64 {
     (x - y).powi(2)
+}
+
+// Calculates the absolute delta between the two values
+fn delta(x: f64, y: f64) -> f64 {
+    (x - y).abs()
+}
+
+// Calculates the minimum of the absolute delta between the values 'end' of each sequence and all previous values from the other sequence. If reverse is true, the sequences are reversed and the index is counted from the back to the front
+fn min_delta(seq_a: &[f64], seq_b: &[f64], end: usize, reverse: bool) -> f64 {
+    let (last, skip_last) = if reverse {
+        (seq_a.len() - 1 - end, seq_a.len() - end)
+    } else {
+        (end, 0)
+    };
+    let mut result = delta(seq_a[last], seq_b[last]);
+    // If there are more then one element in the slice, compare their deltas with the values of the end of the slice
+    if end > 0 {
+        let sequences = [seq_a, seq_b];
+        for (no, sequence) in sequences.iter().enumerate() {
+            for value in sequence.iter().skip(skip_last).take(end + 1) {
+                result = f64::min(result, delta(*value, sequences[1 - no][last]));
+            }
+        }
+    }
+    result
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -153,7 +179,6 @@ impl Trillion {
             du.push_back(i);
             dl.push_back(i);
 
-            // i - r - 1 == r + du.first
             // Pop out the bound that os out of window r.
             if i == 2 * r + 1 + du.front().unwrap() {
                 du.pop_front();
@@ -183,70 +208,44 @@ impl Trillion {
         mean: f64,
         std: f64,
         bsf: f64,
-        //bsf: Option<f64>,
     ) -> (f64, usize) {
+        let no_pruning_points = 3;
+
         let len = q.len();
-        //let bsf = bsf.unwrap_or(f64::INFINITY);
+        let mut lb = 0.0;
+        let mut diff;
 
-        let mut d;
-        let mut lb;
+        let front = j;
+        let back = j + len;
 
-        // 1 point at front and back
-        let x0 = (t[j] - mean) / std;
-        let y0 = (t[(j + len - 1)] - mean) / std;
-        lb = dist(x0, q[0]) + dist(y0, q[len - 1]);
-        if lb >= bsf {
-            return (lb, 1);
-        }
+        let mut candidate_front_z = vec![0.0; no_pruning_points];
+        let mut candidate_back_z = candidate_front_z.clone();
 
-        // 2 points at front
-        let x1 = (t[(j + 1)] - mean) / std;
-        d = f64::min(dist(x1, q[0]), dist(x0, q[1]));
-        d = f64::min(d, dist(x1, q[1]));
-        lb += d;
-        if d >= bsf {
-            return (lb, 2);
-        }
-        if lb >= bsf {
-            return (lb, 1);
-        }
+        let query_front = &q[..no_pruning_points];
+        let query_back = &q[q.len() - no_pruning_points..];
 
-        // 2 points at back
-        let y1 = (t[(j + len - 2)] - mean) / std;
-        d = f64::min(dist(y1, q[len - 1]), dist(y0, q[len - 2]));
-        d = f64::min(d, dist(y1, q[len - 2]));
-        lb += d;
-        if d >= bsf {
-            return (lb, len - 2 + 1);
-        }
-        if lb >= bsf {
-            return (lb, 1);
-        }
+        let candidate_front = &t[front..front + no_pruning_points];
+        let candidate_back = &t[back - no_pruning_points..back];
 
-        // 3 points at front
-        let x2 = (t[(j + 2)] - mean) / std;
-        d = f64::min(dist(x0, q[2]), dist(x1, q[2]));
-        d = f64::min(d, dist(x2, q[2]));
-        d = f64::min(d, dist(x2, q[1]));
-        d = f64::min(d, dist(x2, q[0]));
-        lb += d;
-        if d >= bsf {
-            return (lb, 3);
-        }
-        if lb >= bsf {
-            return (lb, 1);
-        }
-        // 3 points at back
-        let y2 = (t[(j + len - 3)] - mean) / std;
-        d = f64::min(dist(y0, q[len - 3]), dist(y1, q[len - 3]));
-        d = f64::min(d, dist(y2, q[len - 3]));
-        d = f64::min(d, dist(y2, q[len - 2]));
-        d = f64::min(d, dist(y2, q[len - 1]));
-        lb += d;
-        if d >= bsf {
-            return (lb, len - 3 + 1);
-        }
+        for i in 0..no_pruning_points {
+            // from front
+            candidate_front_z[i] = (candidate_front[i] - mean) / std;
+            diff = min_delta(&candidate_front_z, &query_front, i, false);
+            lb += diff.powi(2);
+            if lb >= bsf {
+                return (lb, 1);
+            }
 
+            //from back
+            candidate_back_z[no_pruning_points - 1 - i] =
+                (candidate_back[no_pruning_points - 1 - i] - mean) / std;
+            diff = min_delta(&candidate_back_z, &query_back, i, true);
+            lb += diff.powi(2);
+
+            if lb >= bsf {
+                return (lb, 1);
+            }
+        }
         (lb, 1)
     }
 
@@ -261,90 +260,48 @@ impl Trillion {
     /// cb    : (output) current bound at each position. It will be used later for early abandoning in DTW.
     fn lb_keogh_cumulative(
         order: &[usize],
-        t: &[f64],
-        uo: &[f64],
-        lo: &[f64],
-        cb: &mut [f64],
+        data: &[f64],
+        cum_bound: &mut [f64],
+        upper_envelope: &[f64],
+        lower_envelope: &[f64],
         j: usize,
-        len: usize,
         mean: f64,
         std: f64,
         bsf: f64,
+        data_bound: bool,
     ) -> (f64, usize) {
-        //let bsf = bsf.unwrap_or(f64::INFINITY);
+        let mut q_z;
+        let mut u_z;
+        let mut l_z;
+        let mut diff;
 
         let mut lb: f64 = 0.0;
         let mut jump = order[0];
-        let mut x;
-        let mut d;
-
-        for i in 0..len {
-            x = (t[(order[i] + j)] - mean) / std;
-            d = 0.0;
-
-            if order[i] < jump {
-                jump = order[i]
-            }
-
-            if x > uo[i] {
-                d = dist(x, uo[i]);
-            } else if x < lo[i] {
-                d = dist(x, lo[i]);
-            }
-            lb += d;
-            cb[order[i]] = d;
-
-            if lb >= bsf {
-                break;
-            }
-        }
-        (lb, jump + 1)
-    }
-
-    /// LB_Keogh 2: Create Envelop for the data
-    /// Note that the envelops have been created (in main function) when each data point has been read.
-    ///
-    /// Variable Explanation,
-    /// tz: Z-normalized data
-    /// qo: sorted query
-    /// cb: (output) current bound at each position. Used later for early abandoning in DTW.
-    /// l,u: lower and upper envelop of the current data
-    fn lb_keogh_data_cumulative(
-        order: &[usize],
-        qo: &[f64],
-        cb: &mut [f64],
-        l: &[f64],
-        u: &[f64],
-        j: usize, // The C implementation calls this 'len'
-        mean: f64,
-        std: f64,
-        bsf: f64,
-    ) -> (f64, usize) {
-        //let bsf = bsf.unwrap_or(f64::INFINITY);
-
-        let mut uu;
-        let mut ll;
-        let mut d;
-
-        let mut lb = 0.0;
-        let mut jump = order[0];
 
         for i in 0..order.len() {
-            uu = (u[j + order[i]] - mean) / std;
-            ll = (l[j + order[i]] - mean) / std;
-            d = 0.0;
+            if data_bound {
+                q_z = data[i];
+                u_z = (upper_envelope[j + order[i]] - mean) / std;
+                l_z = (lower_envelope[j + order[i]] - mean) / std;
+            } else {
+                q_z = (data[(j + order[i])] - mean) / std;
+                u_z = upper_envelope[i];
+                l_z = lower_envelope[i];
+            }
+            diff = 0.0;
 
             if order[i] < jump {
                 jump = order[i]
             }
 
-            if qo[i] > uu {
-                d = dist(qo[i], uu);
-            } else if qo[i] < ll {
-                d = dist(qo[i], ll);
+            if q_z > u_z {
+                diff = dist(u_z, q_z);
+            } else if q_z < l_z {
+                diff = dist(l_z, q_z);
             }
-            lb += d;
-            cb[order[i]] = d;
+            lb += diff;
+            cum_bound[order[i]] = diff;
+
             if lb >= bsf {
                 break;
             }
@@ -653,39 +610,40 @@ impl Trillion {
 
                             //////
                             if lb_kim < bsf {
-                                let (lb_k, jump_tmp) = Self::lb_keogh_cumulative(
+                                let (lb_keogh, jump_tmp) = Self::lb_keogh_cumulative(
                                     &order,
                                     &t,
+                                    &mut cb1[..],
                                     &uo,
                                     &lo,
-                                    &mut cb1[..],
                                     j,
-                                    query.len(),
                                     mean,
                                     std,
                                     bsf,
+                                    false,
                                 );
                                 jump_size = jump_tmp;
 
-                                if lb_k < bsf {
-                                    let (lb_k2, jump_tmp) = Trillion::lb_keogh_data_cumulative(
+                                if lb_keogh < bsf {
+                                    let (lb_keogh_data, jump_tmp) = Self::lb_keogh_cumulative(
                                         &order,
                                         &qo,
                                         &mut cb2[..],
-                                        &l_buff, // Maybe pass '&l_buff[index..]' instead
                                         &u_buff, // Maybe pass '&u_buff[index..]' instead
+                                        &l_buff, // Maybe pass '&l_buff[index..]' instead
                                         i_cap,
                                         mean,
                                         std,
                                         bsf,
+                                        true,
                                     );
                                     jump_size = jump_tmp;
 
-                                    if lb_k2 < bsf {
+                                    if lb_keogh_data < bsf {
                                         {
                                             // Choose better lower bound between lb_keogh and lb_keogh2 to be used in early abandoning DTW
                                             // Note that cb and cb2 will be cumulative summed here.
-                                            if lb_k > lb_k2 {
+                                            if lb_keogh > lb_keogh_data {
                                                 cb[query.len() - 1] = cb1[query.len() - 1];
                                                 for k in (0..query.len() - 1).rev() {
                                                     cb[k] = cb[k + 1] + cb1[k];
