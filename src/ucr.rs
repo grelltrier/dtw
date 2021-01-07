@@ -207,45 +207,35 @@ impl Trillion {
     ) -> (f64, usize) {
         let no_pruning_points = 3;
 
-        let len = q.len();
         let mut lb = 0.0;
-        let mut diff;
 
-        let front = j;
-        let back = j + len;
+        let mut end_idx;
+        let mut end_value; // Stores the end of the sequence
+                           // The end changes, depending on if the sequence is looked at front to back or back to front
+        let mut range;
 
-        let mut candidate_front_z = Vec::new();
-        let mut candidate_back_z = candidate_front_z.clone();
-
-        let query_front = &q[..no_pruning_points];
-        let query_back = &q[q.len() - no_pruning_points..];
-
-        let candidate_front = &t[front..front + no_pruning_points];
-        let candidate_back = &t[back - no_pruning_points..back];
-
-        let beginning_side = [candidate_front, candidate_back];
-        let mut seq_end;
+        //let front_to_back = [true, false];
+        let begin_idx = [0, q.len() - 1];
+        let mut candidate_z = [Vec::new(), Vec::new()]; // First one is for the front, the second for the back
 
         for i in 0..no_pruning_points {
-            seq_end = (candidate_front[i] - mean) / std;
-            diff = min_delta((&seq_end, &candidate_front_z), (&q[i], &q[..i]));
-            candidate_front_z.push(seq_end);
-            lb += diff.powi(2);
-            if lb >= bsf {
-                return (lb, 1);
-            }
+            for idx in 0..2 {
+                // If the values are iterated over from the front to back, the index needs to be added
+                // If the values are iterated over from the back to front, the index needs to be subtracted
+                if idx == 0 {
+                    end_idx = begin_idx[idx] + i;
+                    range = 0..end_idx;
+                } else {
+                    end_idx = begin_idx[idx] - i;
+                    range = end_idx + 1..end_idx + 1 + i;
+                };
+                end_value = (&t[j + end_idx] - mean) / std;
 
-            //from back
-            seq_end = (candidate_back[no_pruning_points - 1 - i] - mean) / std;
-            diff = min_delta(
-                (&seq_end, &candidate_back_z),
-                (&q[q.len() - 1 - i], &q[q.len() - 1 - i..q.len() - 1]),
-            );
-            candidate_back_z.push(seq_end);
-            lb += diff.powi(2);
-
-            if lb >= bsf {
-                return (lb, 1);
+                lb += min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
+                candidate_z[idx].push(end_value);
+                if lb >= bsf {
+                    return (lb, 1);
+                }
             }
         }
         (lb, 1)
