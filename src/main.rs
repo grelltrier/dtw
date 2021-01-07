@@ -11,7 +11,7 @@ fn main() {
 
     //let settings = Settings::default();
     let settings = Settings::new(
-        false,  // jump
+        true,   // jump
         true,   // sort:
         true,   // normalize:
         0.10,   // window_rate:

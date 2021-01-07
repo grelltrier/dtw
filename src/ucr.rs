@@ -214,9 +214,10 @@ impl Trillion {
                            // The end changes, depending on if the sequence is looked at front to back or back to front
         let mut range;
 
-        //let front_to_back = [true, false];
-        let begin_idx = [0, q.len() - 1];
-        let mut candidate_z = [Vec::new(), Vec::new()]; // First one is for the front, the second for the back
+        let begin_idx = [0, q.len() - 1]; // The index from which the points are counted from. The first index is for the back and the second for the front
+                                          // It is important to check the end first because it enables us to jump further
+
+        let mut candidate_z = [Vec::new(), Vec::new()]; // First one is for the back, the second for the front
 
         for i in 0..no_pruning_points {
             for idx in 0..2 {
@@ -230,12 +231,17 @@ impl Trillion {
                     range = end_idx + 1..end_idx + 1 + i;
                 };
                 end_value = (&t[j + end_idx] - mean) / std;
-
-                lb += min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
-                candidate_z[idx].push(end_value);
+                let d =
+                    min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
+                lb += d;
+                if d >= bsf {
+                    let jump_size = if idx == 0 { q.len() - i } else { 1 + i };
+                    return (lb, jump_size);
+                }
                 if lb >= bsf {
                     return (lb, 1);
                 }
+                candidate_z[idx].push(end_value);
             }
         }
         (lb, 1)
