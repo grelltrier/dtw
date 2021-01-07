@@ -56,20 +56,16 @@ fn delta(x: f64, y: f64) -> f64 {
 }
 
 // Calculates the minimum of the absolute delta between the values 'end' of each sequence and all previous values from the other sequence. If reverse is true, the sequences are reversed and the index is counted from the back to the front
-fn min_delta(seq_a: &[f64], seq_b: &[f64], end: usize, reverse: bool) -> f64 {
-    let (last, skip_last) = if reverse {
-        (seq_a.len() - 1 - end, seq_a.len() - end)
-    } else {
-        (end, 0)
-    };
-    let mut result = delta(seq_a[last], seq_b[last]);
+fn min_delta(seq_a: (&f64, &[f64]), seq_b: (&f64, &[f64])) -> f64 {
+    let mut result = delta(*seq_a.0, *seq_b.0);
     // If there are more then one element in the slice, compare their deltas with the values of the end of the slice
-    if end > 0 {
-        let sequences = [seq_a, seq_b];
-        for (no, sequence) in sequences.iter().enumerate() {
-            for value in sequence.iter().skip(skip_last).take(end + 1) {
-                result = f64::min(result, delta(*value, sequences[1 - no][last]));
-            }
+    if seq_a.1.len() > 0 {
+        let sequences = [seq_a.1, seq_b.1];
+        for value in seq_a.1 {
+            result = f64::min(result, delta(*value, *seq_b.0));
+        }
+        for value in seq_b.1 {
+            result = f64::min(result, delta(*value, *seq_a.0));
         }
     }
     result
@@ -218,7 +214,7 @@ impl Trillion {
         let front = j;
         let back = j + len;
 
-        let mut candidate_front_z = vec![0.0; no_pruning_points];
+        let mut candidate_front_z = Vec::new();
         let mut candidate_back_z = candidate_front_z.clone();
 
         let query_front = &q[..no_pruning_points];
@@ -227,19 +223,25 @@ impl Trillion {
         let candidate_front = &t[front..front + no_pruning_points];
         let candidate_back = &t[back - no_pruning_points..back];
 
+        let beginning_side = [candidate_front, candidate_back];
+        let mut seq_end;
+
         for i in 0..no_pruning_points {
-            // from front
-            candidate_front_z[i] = (candidate_front[i] - mean) / std;
-            diff = min_delta(&candidate_front_z, &query_front, i, false);
+            seq_end = (candidate_front[i] - mean) / std;
+            diff = min_delta((&seq_end, &candidate_front_z), (&q[i], &q[..i]));
+            candidate_front_z.push(seq_end);
             lb += diff.powi(2);
             if lb >= bsf {
                 return (lb, 1);
             }
 
             //from back
-            candidate_back_z[no_pruning_points - 1 - i] =
-                (candidate_back[no_pruning_points - 1 - i] - mean) / std;
-            diff = min_delta(&candidate_back_z, &query_back, i, true);
+            seq_end = (candidate_back[no_pruning_points - 1 - i] - mean) / std;
+            diff = min_delta(
+                (&seq_end, &candidate_back_z),
+                (&q[q.len() - 1 - i], &q[q.len() - 1 - i..q.len() - 1]),
+            );
+            candidate_back_z.push(seq_end);
             lb += diff.powi(2);
 
             if lb >= bsf {
