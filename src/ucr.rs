@@ -197,6 +197,15 @@ impl Trillion {
         (lower, upper)
     }
 
+    // Calculate the lower bound according to Kim
+    // The paper "An index-based approach for similarity search supporting time warping in large sequence databases,"
+    // (https://doi.org/10.1109/ICDE.2001.914875) elaborates on this lower bound
+    // The time complexity to calculate it is O(1)
+    // Improvements over the UCR suite:
+    //    - The difference between values is only squared for the minimal difference, for comparing them, the absolute is sufficient
+    //    - If the minimal difference between values is bigger then the bsf, all subsequences including these values can be skipped.
+    //      This greatly decreases the time for the calculation.
+    //      To maximize this effect, the LB_Kim is calculated for values at the back, front, back, ... instead of front, back, front...
     fn lb_kim_hierarchy(
         t: &[f64],
         q: &[f64],
@@ -205,44 +214,64 @@ impl Trillion {
         std: f64,
         bsf: f64,
     ) -> (f64, usize) {
+        // Number of points at the beginning and end that are used to calculate the LB_Kim
+        // This number MUST be between 0 and 2*q.len() but you probably don't want to change it from the default of 3
         let no_pruning_points = 3;
 
-        let mut lb = 0.0;
+        let mut dist; // Minimal distance between the values
+        let mut lb = 0.0; // LB_Kim
 
-        let mut end_idx;
-        let mut end_value; // Stores the end of the sequence
-                           // The end changes, depending on if the sequence is looked at front to back or back to front
-        let mut range;
+        // To calculate the lb we compare the beginning and the end of the sequences. A subsequence of the front and the back is used for this. The 'end' of that subsequence is not the trivially found end of the actual sequence but it is the 'inner end' (the end towards the center of the sequence)
+        let mut end_idx; // Index of the end
+        let mut end_value; // Value of the end
+        let mut range; // Range to access the subsequence excluding the end
 
-        let begin_idx = [0, q.len() - 1]; // The index from which the points are counted from. The first index is for the back and the second for the front
-                                          // It is important to check the end first because it enables us to jump further
+        let begin_idx = [q.len() - 1, 0]; // The index from which the points are counted from. The first index is for the back and the second for the front
+                                          // It is important to check the end first because it enables us to jump further if the distance exceeds the bsf
+                                          // This variable is mostly necessary to avoid duplicate code and handle both cases (start at front/back) with one for loop
 
-        let mut candidate_z = [Vec::new(), Vec::new()]; // First one is for the back, the second for the front
+        let mut candidate_z = [Vec::new(), Vec::new()]; // Stores the z-normalized values of the candidate query
+                                                        // The first Vec is for when the subsequence starts at the back, the second for when it starts at the front
 
+        // The lb is calculated for the no_pruning_points first and last values
         for i in 0..no_pruning_points {
+            // idx:0 is for calculating the lb at the BACK of the sequence
+            // idx:1 is for calculating the lb at the FRONT of the sequence
             for idx in 0..2 {
-                // If the values are iterated over from the front to back, the index needs to be added
-                // If the values are iterated over from the back to front, the index needs to be subtracted
+                // If the lb is calculated for values at the end of the sequence..
                 if idx == 0 {
-                    end_idx = begin_idx[idx] + i;
-                    range = 0..end_idx;
+                    end_idx = begin_idx[idx] - i; // .. the 'end' is i values before the actual end of the sequence
+                    range = end_idx + 1..q.len(); // .. and the subsequence begins at the next index and goes until the end of the sequence
                 } else {
-                    end_idx = begin_idx[idx] - i;
-                    range = end_idx + 1..end_idx + 1 + i;
+                    // If the lb is calculated for values at the end of the sequence..
+                    end_idx = begin_idx[idx] + i; // .. the 'end' is i values after the actual beginning of the sequence
+                    range = 0..end_idx; // .. and the subsequence begins at 0 and goes until the 'end'
                 };
-                end_value = (&t[j + end_idx] - mean) / std;
-                let d =
-                    min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
-                lb += d;
-                if d >= bsf {
+
+                // Calculate the z-normalized end value
+                end_value = (t[j + end_idx] - mean) / std;
+
+                // Calculate the minimal distance between the subsequences and the 'end' points and the distance between the 'ends'. It needs to be squared because we use the squared distance for pruning
+                dist = min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
+                // Add the distance to the lb. The dtw calculation does a similar many to many comparison and we could never get a lower value than lb
+                lb += dist;
+
+                // If the distance was larger then bsf, the point we used to calculate it can not be included in the best matching candidate sequence for our query so we jump over
+                // all subsequences that contain the value
+                if dist >= bsf {
                     let jump_size = if idx == 0 { q.len() - i } else { 1 + i };
                     return (lb, jump_size);
                 }
+
+                // If the lb is greater than bsf, we move to the next candidate subsequence
                 if lb >= bsf {
                     return (lb, 1);
                 }
+
+                // Store the z-normalized value for the next calculations
                 candidate_z[idx].push(end_value);
             }
+            // If the lb was not greater then bsf, we have a new lb and return it
         }
         (lb, 1)
     }
