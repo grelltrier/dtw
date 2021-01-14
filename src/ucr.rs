@@ -46,29 +46,37 @@ impl Default for Settings {
     }
 }
 
-fn dist(x: f64, y: f64) -> f64 {
+// Calculates the squared distance between the two values
+fn dist2(x: f64, y: f64) -> f64 {
     (x - y).powi(2)
 }
 
-// Calculates the absolute delta between the two values
-fn delta(x: f64, y: f64) -> f64 {
+// Calculates the distance between the two values
+fn dist(x: f64, y: f64) -> f64 {
     (x - y).abs()
 }
 
-// Calculates the minimum of the absolute delta between the values 'end' of each sequence and all previous values from the other sequence. If reverse is true, the sequences are reversed and the index is counted from the back to the front
-fn min_delta(seq_a: (&f64, &[f64]), seq_b: (&f64, &[f64])) -> f64 {
-    let mut result = delta(*seq_a.0, *seq_b.0);
-    // If there are more then one element in the slice, compare their deltas with the values of the end of the slice
-    if seq_a.1.len() > 0 {
-        let sequences = [seq_a.1, seq_b.1];
-        for value in seq_a.1 {
-            result = f64::min(result, delta(*value, *seq_b.0));
-        }
-        for value in seq_b.1 {
-            result = f64::min(result, delta(*value, *seq_a.0));
+// Input are two sequences of the same length
+// The 'end' of the sequence is denoted as the first element of the tuples of the sequences
+// The function calculates the distance between the 'end' of the sequences and all other values from the other sequence. The minimal distance is returned
+fn min_dist(seq_a: (&f64, &[f64]), seq_b: (&f64, &[f64])) -> f64 {
+    // Compare the two 'ends'
+    let mut lowest_dist = dist(*seq_a.0, *seq_b.0);
+    // If the sequences not only consist of their 'ends'...
+    if !seq_a.1.is_empty() {
+        // Variable to be able to iterate over the sequences
+        let sequences = [seq_a, seq_b];
+        // ..do the following calculation for both sequences:
+        for (no, sequence) in sequences.iter().enumerate() {
+            // Take each value that is not the 'end' of the sequence
+            for value in sequence.1.iter() {
+                // .. and calculate the distance between that value and the end of the other sequence
+                // .. if the distance is lower then the currently lowest distance, set it to the new value
+                lowest_dist = f64::min(lowest_dist, dist(*value, *sequences[1 - no].0));
+            }
         }
     }
-    result
+    lowest_dist
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -132,6 +140,7 @@ impl Trillion {
                 stats.print(result.i as f64);
             }
 
+            // TODO: Remove the following after testing
             // This is just for testing
             // Throws an error to easily see when the calculation is wrong
             if result.loc != 430264 {
@@ -197,13 +206,26 @@ impl Trillion {
         (lower, upper)
     }
 
+    // Calculates the LB_Kim ONLY with the first and last points
+    // It usually is more efficient to check more than one point at the begining and end. Use the method lb_kim_hierarchy to do so
+    fn lb_kim(t: &[f64], q: &[f64], j: usize, mean: f64, std: f64, bsf: f64) -> (f64, usize) {
+        let mut t_z = (t[j] - mean) / std;
+        let mut lb = dist2(q[0], t_z);
+        if lb >= bsf {
+            return (lb, 1);
+        }
+        t_z = (t[j + q.len() - 1] - mean) / std;
+        lb += dist2(q[q.len() - 1], t_z);
+        (lb, 1)
+    }
+
     // Calculate the lower bound according to Kim
     // The paper "An index-based approach for similarity search supporting time warping in large sequence databases,"
     // (https://doi.org/10.1109/ICDE.2001.914875) elaborates on this lower bound
     // The time complexity to calculate it is O(1)
     // Improvements over the UCR suite:
-    //    - The difference between values is only squared for the minimal difference, for comparing them, the absolute is sufficient
-    //    - If the minimal difference between values is bigger then the bsf, all subsequences including these values can be skipped.
+    //    - The distance between values is only squared for the minimal distance, squaring them is not necessary to compare them
+    //    - If the minimal distance between values is bigger then the bsf, all subsequences including these values can be skipped.
     //      This greatly decreases the time for the calculation.
     //      To maximize this effect, the LB_Kim is calculated for values at the back, front, back, ... instead of front, back, front...
     fn lb_kim_hierarchy(
@@ -216,6 +238,7 @@ impl Trillion {
     ) -> (f64, usize) {
         // Number of points at the beginning and end that are used to calculate the LB_Kim
         // This number MUST be between 0 and 2*q.len() but you probably don't want to change it from the default of 3
+        // 0 would render this method obsolete so the lowest sensible input would be 1 meaning the LB_Kim for the first and last points are calculated
         let no_pruning_points = 3;
 
         let mut dist; // Minimal distance between the values
@@ -226,40 +249,40 @@ impl Trillion {
         let mut end_value; // Value of the end
         let mut range; // Range to access the subsequence excluding the end
 
-        let begin_idx = [q.len() - 1, 0]; // The index from which the points are counted from. The first index is for the back and the second for the front
-                                          // It is important to check the end first because it enables us to jump further if the distance exceeds the bsf
+        let begin_idx = [0, q.len() - 1]; // The index from which the points are counted from. The first index is for the front and the second for the back
+                                          // It is important to check the front first because it enables us to jump if the distance exceeds the bsf
                                           // This variable is mostly necessary to avoid duplicate code and handle both cases (start at front/back) with one for loop
 
         let mut candidate_z = [Vec::new(), Vec::new()]; // Stores the z-normalized values of the candidate query
-                                                        // The first Vec is for when the subsequence starts at the back, the second for when it starts at the front
+                                                        // The first Vec is for when the subsequence starts at the front, the second for when it starts at the back
 
         // The lb is calculated for the no_pruning_points first and last values
         for i in 0..no_pruning_points {
-            // idx:0 is for calculating the lb at the BACK of the sequence
-            // idx:1 is for calculating the lb at the FRONT of the sequence
+            // idx:0 is for calculating the lb at the FRONT of the sequence
+            // idx:1 is for calculating the lb at the BACK of the sequence
             for idx in 0..2 {
-                // If the lb is calculated for values at the end of the sequence..
                 if idx == 0 {
-                    end_idx = begin_idx[idx] - i; // .. the 'end' is i values before the actual end of the sequence
-                    range = end_idx + 1..q.len(); // .. and the subsequence begins at the next index and goes until the end of the sequence
+                    // If the lb is calculated for values at the front of the sequence..
+                    end_idx = begin_idx[idx] + i; // .. the 'end' is i values AFTER the actual beginning of the sequence
+                    range = 0..end_idx; // .. and the subsequence begins at 0 and goes until the 'end'
                 } else {
                     // If the lb is calculated for values at the end of the sequence..
-                    end_idx = begin_idx[idx] + i; // .. the 'end' is i values after the actual beginning of the sequence
-                    range = 0..end_idx; // .. and the subsequence begins at 0 and goes until the 'end'
+                    end_idx = begin_idx[idx] - i; // .. the 'end' is i values BEFORE the actual end of the sequence
+                    range = end_idx + 1..q.len(); // .. and the subsequence begins at the next index and goes until the end of the sequence
                 };
 
                 // Calculate the z-normalized end value
                 end_value = (t[j + end_idx] - mean) / std;
 
-                // Calculate the minimal distance between the subsequences and the 'end' points and the distance between the 'ends'. It needs to be squared because we use the squared distance for pruning
-                dist = min_delta((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
+                // Calculate the minimal distance between the subsequences and the 'end' points and the distance between the 'ends'. It needs to be squared because we use the squared distance for the lower bound and pruning
+                dist = min_dist((&end_value, &candidate_z[idx]), (&q[end_idx], &q[range])).powi(2);
                 // Add the distance to the lb. The dtw calculation does a similar many to many comparison and we could never get a lower value than lb
                 lb += dist;
 
-                // If the distance was larger then bsf, the point we used to calculate it can not be included in the best matching candidate sequence for our query so we jump over
-                // all subsequences that contain the value
+                // If the distance was larger then bsf ..
                 if dist >= bsf {
-                    let jump_size = if idx == 0 { q.len() - i } else { 1 + i };
+                    // .. and if we got the minimal distance from the front values, we can jump those values, because there is no warping possible, that
+                    let jump_size = if idx == 0 { 1 + i } else { 1 };
                     return (lb, jump_size);
                 }
 
@@ -276,15 +299,14 @@ impl Trillion {
         (lb, 1)
     }
 
-    /// LB_Keogh 1: Create Envelop for the query
-    /// Note that because the query is known, envelop can be created once at the begining.
+    /// LB_Keogh 1  : Create Envelop for a sequence
     ///
     /// Variable Explanation,
-    /// order : sorted indices for the query.
-    /// t     : a circular array keeping the current data.
-    /// uo, lo: upper and lower envelops for the query, which already sorted.
-    /// j     : index of the starting location in t
-    /// cb    : (output) current bound at each position. It will be used later for early abandoning in DTW.
+    /// order       : sorted indices for the query
+    /// data        : a circular array keeping the current data
+    /// cum_bound   : (output) current bound at each position. It will be used later for early abandoning in DTW
+    /// upper_envelope, lower_envelope      : upper and lower envelops for the sequence, which already sorted
+    /// j           : index of the starting location in the
     fn lb_keogh_cumulative(
         order: &[usize],
         data: &[f64],
@@ -322,9 +344,9 @@ impl Trillion {
             }
 
             if q_z > u_z {
-                diff = dist(u_z, q_z);
+                diff = dist2(u_z, q_z);
             } else if q_z < l_z {
-                diff = dist(l_z, q_z);
+                diff = dist2(l_z, q_z);
             }
             lb += diff;
             cum_bound[order[i]] = diff;
@@ -374,7 +396,7 @@ impl Trillion {
             for j in ini_j..(usize::min(a_seq_len - 1, i + r) + 1) {
                 // Initialize all row and column
                 if (i == 0) && (j == 0) {
-                    cost[j] = dist(a_seq[0], b_seq[0]);
+                    cost[j] = dist2(a_seq[0], b_seq[0]);
                     min_cost = cost[j];
                     found_sc = true;
                     continue;
@@ -397,7 +419,7 @@ impl Trillion {
                 }
 
                 // Classic DTW calculation
-                cost[j] = f64::min(f64::min(x, y), z) + dist(a_seq[i], b_seq[j]);
+                cost[j] = f64::min(f64::min(x, y), z) + dist2(a_seq[i], b_seq[j]);
 
                 // Find minimum cost in row for early abandoning (possibly to use column instead of row).
                 if cost[j] < min_cost {
