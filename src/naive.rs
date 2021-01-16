@@ -1,18 +1,9 @@
 use super::*;
 
 /// Calculate the similarity of two sequences of vectors of n components with a naive implementation of DTW (no pruning or other optimizations)
-/// Inspired by https://www.codesuji.com/2020/11/05/Rust-and-Dynamic-Time-Warping/
-pub fn dtw<F, T, A, D>(
-    a: &[ArrayBase<T, D>],
-    b: &[ArrayBase<T, D>],
-    norm_func: F,
-    debug: bool,
-) -> f64
+pub fn dtw<F, T>(a: &[T], b: &[T], cost_fn: F, debug: bool) -> f64
 where
-    F: Fn(&ArrayBase<T, D>, &ArrayBase<T, D>) -> f64,
-    T: Data<Elem = A>,
-    A: AddAssign + Clone + Signed + ToPrimitive,
-    D: Dimension,
+    F: Fn(&T, &T) -> f64,
 {
     // Init similarity matrix
     let mut similarity_mtrx = Array::<f64, Ix2>::from_elem((a.len() + 1, b.len() + 1), f64::MAX);
@@ -21,7 +12,7 @@ where
     // Calculate similarity matrix
     for i in 1..=a.len() {
         for j in 1..=b.len() {
-            let cost = norm_func(&a[i - 1], &b[j - 1]);
+            let cost = cost_fn(&a[i - 1], &b[j - 1]);
             similarity_mtrx[[i, j]] = cost
                 + f64::min(
                     f64::min(similarity_mtrx[[i - 1, j]], similarity_mtrx[[i, j - 1]]),

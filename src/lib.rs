@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate log;
-
 use core::ops::AddAssign;
 use ndarray::prelude::*;
 use ndarray::Data;
@@ -12,14 +9,31 @@ use std::io::prelude::*;
 pub mod naive;
 pub mod ucr;
 
-// Calculate the L2 distance (euclidian distance) for a vector
+/// Calculate the squared L2 distance (euclidian distance) between two vectors
+/// Uses the sq_l2_dist method of the ndarray crate
+/// Read its documentation for more details
+pub fn sq_l2_dist<T, A, D>(a: &ArrayBase<T, D>, b: &ArrayBase<T, D>) -> f64
+where
+    T: Data<Elem = A>,
+    A: AddAssign + Clone + Signed + ToPrimitive,
+    D: Dimension,
+{
+    a.sq_l2_dist(b)
+        .unwrap()
+        .to_f64()
+        .expect("failed cast from type A to f64")
+}
+
+/// Calculate the squared L2 distance (euclidian distance) between two vectors
+/// Uses the sq_l2_dist method of the ndarray crate
+/// Read its documentation for more details
 pub fn l2_dist<T, A, D>(a: &ArrayBase<T, D>, b: &ArrayBase<T, D>) -> f64
 where
     T: Data<Elem = A>,
     A: AddAssign + Clone + Signed + ToPrimitive,
     D: Dimension,
 {
-    a.l2_dist(b).unwrap()
+    f64::sqrt(sq_l2_dist(a, b))
 }
 
 pub mod utilities {
@@ -68,21 +82,6 @@ pub mod utilities {
         }
     }
 
-    impl<T, I> DataReader<T>
-    where
-        T: Iterator<Item = I>,
-        I: std::str::FromStr,
-    {
-        /*fn new(filename: &str) -> impl Iterator<Item = I> {
-            let reader = BufReader::new(File::open(filename).expect("Cannot open the file"));
-            reader
-                .lines()
-                .filter_map(|line| line.ok())
-                .flat_map(|line| line.split_whitespace())
-                .filter_map(|column| column.parse::<I>().ok())
-        }*/
-    }
-
     type SeriesType = ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 1]>>;
     pub fn make_test_series() -> ([SeriesType; 6], [SeriesType; 8]) {
         let a1 = array![1.0, 1.];
@@ -109,9 +108,21 @@ pub mod utilities {
 mod tests {
     use super::*;
     #[test]
-    fn cost_function() {
-        let (series_1, series_2) = utilities::make_test_series();
-        let cost = naive::dtw(&series_1, &series_2, l2_dist, false);
+    fn naive_dtw() {
+        let (data, query) = utilities::make_test_series();
+        let cost = naive::dtw(&data, &query, l2_dist, false);
+        println!("naive squared cost: {}", cost);
         assert!((0.55 - cost).abs() < 0.000000000001);
+    }
+    #[test]
+    fn ucr_usp_dtw() {
+        let (data, query) = utilities::make_test_series();
+        // Creates dummy cummulative lower bound
+        let cb = vec![f64::INFINITY; data.len()];
+        let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, l2_dist);
+        let cost_naive = naive::dtw(&data, &query, l2_dist, false);
+        println!("ucr cost: {}", cost_ucr);
+        println!("naive cost: {}", cost_naive);
+        assert!((0.55 - cost_ucr).abs() < 0.000000000001);
     }
 }
