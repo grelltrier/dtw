@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::prelude::*;
 
 pub mod naive;
+mod tests;
 pub mod ucr;
 
 /// Calculate the squared L2 distance (euclidian distance) between two vectors
@@ -101,28 +102,5 @@ pub mod utilities {
         let series_1 = [a1, a2, a3, a4, a5, a6];
         let series_2 = [b1, b2, b3, b4, b5, b6, b7, b8];
         (series_1, series_2)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn naive_dtw() {
-        let (data, query) = utilities::make_test_series();
-        let cost = naive::dtw(&data, &query, l2_dist, false);
-        println!("naive squared cost: {}", cost);
-        assert!((0.55 - cost).abs() < 0.000000000001);
-    }
-    #[test]
-    fn ucr_usp_dtw() {
-        let (data, query) = utilities::make_test_series();
-        // Creates dummy cummulative lower bound
-        let cb = vec![f64::INFINITY; data.len()];
-        let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, l2_dist);
-        let cost_naive = naive::dtw(&data, &query, l2_dist, false);
-        println!("ucr cost: {}", cost_ucr);
-        println!("naive cost: {}", cost_naive);
-        assert!((0.55 - cost_ucr).abs() < 0.000000000001);
     }
 }
