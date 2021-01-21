@@ -10,7 +10,7 @@ Pruned by LB_Kim    : 22.6827%
 Pruned by LB_Keogh  : 35.9776%
 Pruned by LB_Keogh2 : 36.5951%
 DTW Calculation     : 4.7446%
-[batman@archlnx dtw]$ cargo run --release
+[user@archlnx dtw]$ cargo run --release
     Finished release [optimized] target(s) in 0.07s
      Running `target/release/dtw`
 ..
