@@ -10,3 +10,6 @@ edition = "2018"
 ndarray= "0.13"
 ndarray-stats = "0.3"
 num-traits ="0.2"
+
+[dev-dependencies]
+rand = "0.8"
