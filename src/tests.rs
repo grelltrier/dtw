@@ -1,5 +1,4 @@
 use super::*;
-use crate::costs::sq_l2_dist;
 
 type SeriesType = ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 1]>>;
 
@@ -10,21 +9,21 @@ fn naive_dtw() {
     let (query_unequal, data) = make_test_series(false);
 
     // UNEQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_unequal, crate::costs::l2_dist, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::l2_dist, false);
     assert!((0.55 - cost).abs() < 0.000000000001);
 
     // UNEQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_unequal, sq_l2_dist, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::sq_l2_dist, false);
     assert!((0.19329999999999 - cost).abs() < 0.000000000001);
 
     // ##### Sequences of EQUAL length #######
     let (query_equal, data) = make_test_series(true);
     // EQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_equal, crate::costs::l2_dist, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::l2_dist, false);
     assert!((3.29 - cost).abs() < 0.000000000001);
 
     // EQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_equal, sq_l2_dist, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::sq_l2_dist, false);
     assert!((4.5969 - cost).abs() < 0.000000000001);
 }
 
@@ -40,18 +39,18 @@ fn ucr_usp_dtw() {
         &cb,
         data.len() - 2,
         f64::INFINITY,
-        &sq_l2_dist,
+        &dtw_cost::sq_l2_dist,
     );
     assert!((4.5969 - cost_ucr).abs() < 0.000000000001);
 }
 
 #[test]
 fn ucr_equals_naive_dtw() {
-    let cost_fn = crate::costs::sq_l2_dist_1d;
+    let cost_fn = dtw_cost::sq_l2_dist_1d;
     // Create random sequences for the query and the data time series
     // The observations are of type f64
     // The time series length is between 0 and 300
-    let (data, query) = make_rdm_series((0, 300), None);
+    let (data, query) = make_rdm_series((800, 900), None);
     // Creates dummy cummulative lower bound
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
     let cb = vec![0.0; data.len()];

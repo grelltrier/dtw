@@ -4,12 +4,9 @@ version = "0.1.0"
 authors = ["pentamassiv <pentamassiv@posteo.de>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ndarray= "0.13"
-ndarray-stats = "0.3"
-num-traits ="0.2"
 
 [dev-dependencies]
 rand = "0.8"
+dtw_cost = {path="../dtw_cost"}
