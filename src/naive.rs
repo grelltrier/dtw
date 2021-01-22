@@ -6,8 +6,7 @@ where
     F: Fn(&T, &T) -> f64,
     T: std::fmt::Debug,
 {
-    assert!(false); // clippy won't like this
-                    // Init cost matrix
+    // Init cost matrix
     let mut cost_mtrx =
         Array::<f64, Ix2>::from_elem((series_a.len() + 1, series_b.len() + 1), f64::INFINITY);
     cost_mtrx[[0, 0]] = 0.;
