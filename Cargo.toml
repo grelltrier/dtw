@@ -9,4 +9,4 @@ ndarray= "0.13"
 
 [dev-dependencies]
 rand = "0.8"
-dtw_cost = {path="../dtw_cost"}
+dtw_cost = { git = "https://github.com/grelltrier/dtw_cost" }
