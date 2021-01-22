@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 ndarray= "0.13"
-dtw_cost = { git = "https://github.com/grelltrier/dtw_cost" }
 
 [dev-dependencies]
+dtw_cost = { git = "https://github.com/grelltrier/dtw_cost" }
 rand = "0.8"
