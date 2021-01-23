@@ -14,4 +14,9 @@ fn main() {
 ```
 
 ## TODO
-So far, there are no optimizations, no pruning... so it is not very efficient
+- Explore if it can be sped up for one-dimensional data by comparing the values within a row with the lowest found value before doing distance calculation
+  Each row x serves to find the closest matching value of column y so we only need the distance of that one match
+  To find it a comparison might be faster
+  Could be implemented by the cost function. It could abandon early if its not smaller than the previous value
+- For multi-dimensional data, when calculating the ED, it could abandon early by checking if the squared distance of one of the dimensions already exceeds
+  the bsf of the best cell in that row

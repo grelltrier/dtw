@@ -14,9 +14,9 @@ where
 {
     let mut cost_tmp;
     let (mut x, mut y, mut z, mut min_cost);
-    let data_len = data.len();
+    let data_len = data.len(); // Also called n
 
-    // Instead of using matrix of size O(m^2) or O(mr), we will reuse two array of size O(data_len).
+    // Instead of using matrix of size O(n^2) or O(nr), we will reuse two array of size O(n).
     let mut cost = Array::<f64, Ix1>::from_elem(data_len, f64::INFINITY);
     let mut cost_prev = cost.clone();
 
@@ -26,7 +26,7 @@ where
     let mut next_ec;
     let mut lp = 0; // lp stands for last pruning
                     // TODO: Should this be initialized to 0? UCR_USP_suite does not intialize it at all it seems?
-    let mut ub = bsf - cb[r + 1];
+    let mut ub = bsf - cb[r + 1]; // Shouldn't this be "bsf - cb[1]" instead?? the effect of warping is already taken care of by the envelope/calculating the cumBound
     let mut found_sc: bool;
     let mut pruned_ec = false;
     let mut ini_j;
