@@ -59,6 +59,22 @@ fn ucr_equals_naive_dtw() {
     assert!((cost_naive - cost_ucr).abs() < 0.000000000001);
 }
 
+#[test]
+fn ucr_equals_improved_dtw() {
+    let cost_fn = dtw_cost::sq_l2_dist_1d;
+    // Create random sequences for the query and the data time series
+    // The observations are of type f64
+    // The time series length is between 0 and 300
+    let (data, query) = make_rdm_series((800, 900), None);
+    // Creates dummy cummulative lower bound
+    // We want the full calculation without abandoning or pruning so it consists only of 0.0
+    let cb = vec![0.0; data.len()];
+    let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
+    let cost_ucr_improved =
+        ucr_improved::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
+    assert!((cost_ucr_improved - cost_ucr).abs() < 0.000000000001);
+}
+
 // Create random sequences for the query and the data time series
 // The observations are of type f64
 // The tuple "query_rng" describes the min and max length of the query

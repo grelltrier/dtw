@@ -14,9 +14,20 @@ fn main() {
 ```
 
 ## TODO
-- Explore if it can be sped up for one-dimensional data by comparing the values within a row with the lowest found value before doing distance calculation
-  Each row x serves to find the closest matching value of column y so we only need the distance of that one match
-  To find it a comparison might be faster
-  Could be implemented by the cost function. It could abandon early if its not smaller than the previous value
 - For multi-dimensional data, when calculating the ED, it could abandon early by checking if the squared distance of one of the dimensions already exceeds
   the bsf of the best cell in that row
+
+- LB_Kim_FL only for the endpoints
+  -> Change envelopes so they follow the boundary constraint and match first with first and last with last points
+- Calculate the lower bound of the data sequence only when needed
+- Use the z-normalized data sequence from the calculation of the lower bounds
+- For one dimensional data, why bother squaring and not just taking absolute bounds as cost function?
+- SS-PrunedDTW
+  UB=bsf-cumLB[i+ws+1] <= shouldn't this just be UB=bsf-cumLB[i+1] instead???
+  => The warping band is already taken into account when calculating the envelop (cumLB)
+- lp in ssPrunedDTW can be set to n instead of i+1+ws?
+- Save space -> cost/cost_prev of len w instead
+- ec/next_ec never used for pruning??
+
+- EAPrunedDTW
+  "while j = next_start ∧ j < prev_pruningpoint do" should be "while j = next_start ∧ j <= prev_pruningpoint do"
