@@ -7,108 +7,103 @@ use std::ops::{Div, Sub};
 /// w  : size of Sakoe-Chiba warpping band
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
-pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
+pub fn dtw<T, F>(data: &[T], query: &[T], ub: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
 where
     T: Div<Output = T> + Sub<Output = T>,
     F: Fn(&T, &T) -> f64,
 {
-    let (mut x, mut y, mut z); // Top left, top, left cells next to currently calculated cell
-    let data_len = data.len(); // Also called n
+    let mut cell_value; // TODO: REMOVE!!!
+
+    let co;
+    let li;
+    if query.len() <= data.len() {
+        co = query;
+        li = data;
+    } else {
+        co = data;
+        li = query;
+    }
 
     // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two array of size O(n).
-    let mut cost = Array::<f64, Ix1>::from_elem(2 * w, f64::INFINITY);
-    let mut cost_prev = cost.clone();
-    let mut cost_tmp; // Used to switch cost to cost_prev
+    let mut prev = Array::<f64, Ix1>::from_elem(co.len() + 1, f64::INFINITY);
+    let mut curr = prev.clone();
+    let mut cost_tmp;
 
-    let mut sc = 0;
-    let mut ec = 0;
-    let mut step_start = Some(0);
-    let mut step_end = 2 * w;
-    let mut end;
+    let mut j; // Column index/index of the shorter sequence
+    let mut c = 0.0; // Cost to match observation i and j with eachother
 
-    let mut ub = bsf - cb[w];
+    curr[0] = 0.0;
+    let mut next_start = 1;
+    let mut prev_pruning_point = 0;
+    let mut pruning_point = 0;
+    for i in 1..li.len() {
+        println!();
 
-    //let mut found_start = true;
+        // Swap the current array with the previous array
+        cost_tmp = curr;
+        curr = prev;
+        prev = cost_tmp;
 
-    let mut warp_start;
-    let mut warp_end;
-
-    for i in 0..data_len {
-        // If no start was found, abandon calculation
-        if let Some(start) = sc_next {
-            sc = start;
-        } else {
-            break;
+        j = next_start;
+        curr[j - 1] = f64::INFINITY;
+        while j == next_start && j < prev_pruning_point {
+            c = cost_fn(&li[i], &co[j]);
+            cell_value = c + f64::min(prev[j], prev[j - 1]);
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[j] {
+                pruning_point = j + 1;
+            } else {
+                next_start += 1;
+            }
+            j += 1;
         }
-
-        // Reset the start for the next row
-        sc_next = None;
-
-        // Update the UB
-        if i + w < data_len - 1 {
-            ub = bsf - cb[i + w];
+        while j < prev_pruning_point {
+            c = cost_fn(&li[i], &co[j]);
+            cell_value = c + f64::min(curr[j - 1], f64::min(prev[j], prev[j - 1]));
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[j] {
+                pruning_point = j + 1;
+            }
+            j += 1;
         }
-
-        warp_start = i.saturating_sub(w);
-        warp_end = i + w;
-
-        sc = usize::max(sc, warp_start);
-        end = usize::min(warp_end, data_len - 1);
-
-        for j in sc..=end {
-            //   |    x    |    y    |
-            //   |    z    | current |
-
-            // If current cell is at the leftmost column
-            if j == sc {
-                z = f64::INFINITY;
-            } else {
-                z = cost[j - 1];
-            }
-
-            if (i == 0) || (j == i + w) || (j >= ec_prev) {
-                y = f64::INFINITY;
-            } else {
-                y = cost_prev[j];
-            }
-            if (i == 0) || (j == 0) || (j > ec_prev) {
-                x = f64::INFINITY;
-            } else {
-                x = cost_prev[j - 1];
-            }
-
-            // Classic DTW calculation
-            cost[j] = f64::min(f64::min(x, y), z) + cost_fn(&data[i], &query[j]);
-
-            // If the cost is lower than UB ...
-            if cost[j] < ub {
-                // The row does not end here so we push the end to the next cell
-                ec = j + 1;
-                // If no start for the next column was previously found,
-                // now we found one so save its index
-                if sc_next.is_none() {
-                    sc_next = Some(j);
+        if j <= co.len() {
+            c = cost_fn(&li[i], &co[j]);
+            if j == next_start {
+                cell_value = c + prev[j - 1];
+                print!("{} ", cell_value);
+                curr[j] = cell_value;
+                if curr[j] <= ub[j] {
+                    pruning_point = j + 1;
+                } else {
+                    return f64::INFINITY;
                 }
-            // If the cost is greater or equal to the UB ...
             } else {
-                // and if the column is greater than the end column of the previous row, the row must end
-                if j > ec_prev {
-                    // .. so we remember at which index we pruned and that we pruned the end
-                    break;
+                cell_value = c + f64::min(curr[j - 1], prev[j - 1]);
+                print!("{} ", cell_value);
+                curr[j] = cell_value;
+                if curr[j] <= ub[j] {
+                    pruning_point = j + 1;
                 }
             }
+            j += 1;
+        } else if j == next_start {
+            return f64::INFINITY;
         }
-
-        // Move current array to previous array.
-        cost_tmp = cost;
-        cost = cost_prev;
-        cost_prev = cost_tmp;
-
-        ec_prev = ec;
+        while j == pruning_point && j <= co.len() {
+            cell_value = c + curr[j - 1];
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[j] {
+                pruning_point = j + 1;
+            }
+            j += 1;
+        }
+        prev_pruning_point = pruning_point;
     }
-    if sc_next.is_none() {
+    if prev_pruning_point <= co.len() {
         return f64::INFINITY;
     }
-
-    cost_prev[sc - 1]
+    curr[co.len()]
 }

@@ -14,6 +14,9 @@ fn main() {
 ```
 
 ## TODO
+- Line 36 in Algorithm 3 "curr[j] = c + curr[j - 1];" complains about potentially not initialized value
+
+
 - For multi-dimensional data, when calculating the ED, it could abandon early by checking if the squared distance of one of the dimensions already exceeds
   the bsf of the best cell in that row
 

@@ -72,7 +72,26 @@ fn ucr_equals_improved_dtw() {
     let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
     let cost_ucr_improved =
         ucr_improved::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
+    println!("UCR: {}", cost_ucr);
+    println!("Improved: {}", cost_ucr_improved);
     assert!((cost_ucr_improved - cost_ucr).abs() < 0.000000000001);
+}
+
+#[test]
+fn improved_dtw() {
+    let cost_fn = dtw_cost::sq_l2_dist_1d;
+    // Create random sequences for the query and the data time series
+    // The observations are of type f64
+    // The time series length is between 0 and 300
+    let data = [0.0, 3., 1., 4., 4., 1., 1.];
+    let query = [0.0, 1., 3., 2., 1., 2., 2.];
+    // Creates dummy cummulative lower bound
+    // We want the full calculation without abandoning or pruning so it consists only of 0.0
+    let cb = vec![9.0; data.len()];
+    let cost_ucr_improved =
+        ucr_improved::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
+    println!("Improved: {}", cost_ucr_improved);
+    assert!((cost_ucr_improved - 5.0).abs() < 0.000000000001);
 }
 
 // Create random sequences for the query and the data time series
