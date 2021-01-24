@@ -83,8 +83,8 @@ fn improved_dtw() {
     // Create random sequences for the query and the data time series
     // The observations are of type f64
     // The time series length is between 0 and 300
-    let data = [0.0, 3., 1., 4., 4., 1., 1.];
-    let query = [0.0, 1., 3., 2., 1., 2., 2.];
+    let data = [3., 1., 4., 4., 1., 1.];
+    let query = [1., 3., 2., 1., 2., 2.];
     // Creates dummy cummulative lower bound
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
     let cb = vec![9.0; data.len()];
