@@ -39,12 +39,11 @@ where
     let mut pruning_point = 0;
 
     let mut warp_band_begin;
-    //let mut warping_end;
+    let mut warping_end;
 
     // For each row of the cost matrix
     'row_loop: for i in 0..li.len() {
         // Begin at the start column
-        // j = next_start;
         warp_band_begin = i.saturating_sub(w);
         if next_start < warp_band_begin {
             if next_start <= prev_pruning_point {
@@ -56,7 +55,7 @@ where
         } else {
             j = next_start;
         }
-        //warping_end = usize::min(i + w, co.len());
+        warping_end = usize::min(i + w, co.len() - 1);
 
         println!();
         for _ in 0..j {
@@ -109,9 +108,9 @@ where
             }
             // Increase the column index
             j += 1;
-            /*if j > warping_end {
+            if j > warping_end {
                 continue 'row_loop;
-            }*/
+            }
         }
         // Once we found a start, we can now also have warping paths coming from the left
         // of the current cell, so we must consider that cell now too
@@ -128,9 +127,9 @@ where
                 pruning_point = j + 1;
             }
             j += 1;
-            /*if j > warping_end {
+            if j > warping_end {
                 continue 'row_loop;
-            }*/
+            }
         }
         // When reaching this point, we found a start and reached the prev_pruning_point,
         // but have not yet reached the end of the row.
@@ -145,9 +144,9 @@ where
                 pruning_point = j + 1;
             }
             j += 1;
-            /*if j > warping_end {
+            if j > warping_end {
                 continue 'row_loop;
-            }*/
+            }
         }
         // Once we passed the prev_pruning_point, the only possible warping paths are from the left
         // and we can start with the next row once we found a value that is greater than the UB
@@ -162,9 +161,9 @@ where
                 break; // Breaks the while loop
             }
             j += 1;
-            /*if j > warping_end {
+            if j > warping_end {
                 continue 'row_loop;
-            }*/
+            }
         }
     }
     // The boundary constraint dictates, that the last points must match.

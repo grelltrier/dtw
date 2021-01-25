@@ -60,8 +60,8 @@ fn ucr_equals_naive_dtw() {
 }
 
 #[test]
-#[ignore]
-fn ucr_equals_improved_dtw_no_sakoe() {
+//#[ignore]
+fn ucr_equals_improved_dtw() {
     let cost_fn = dtw_cost::sq_l2_dist_1d;
     for _ in 0..100 {
         // Create random sequences for the query and the data time series
@@ -69,9 +69,8 @@ fn ucr_equals_improved_dtw_no_sakoe() {
         // The time series length is between 0 and 300
         let (data, query, cb_data, cb_query, w, bsf) = make_rdm_params((800, 900), None);
 
-        let cost_ucr = ucr::dtw(&data, &query, &cb_query, query.len() - 2, bsf, &cost_fn);
-        let cost_ucr_improved =
-            ucr_improved::dtw(&data, &query, &cb_query, query.len() - 2, bsf, &cost_fn);
+        let cost_ucr = ucr::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
+        let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
 
         println!("Testing with w: {}", w);
         println!("UCR     : {}", cost_ucr);
@@ -90,32 +89,55 @@ fn improved_dtw() {
     // The time series length is between 0 and 300
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
+    let w0 = 0;
+    let w1 = 1;
+    let w3 = 3;
+    let cb_null = vec![0.0; data.len()];
+    let bsf_six = 6.0;
+    let bsf_nine = 9.10;
+    let bsf_max = f64::MAX;
 
-    // Creates dummy cummulative lower bound
-    let cb = vec![0.0; data.len()];
+    // ###### Sakoe-Chiba band variation ################
+    // w = 0
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w0, bsf_nine, &cost_fn);
+    assert!(cost_ucr_improved.is_infinite());
 
+    // w = 1
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w1, bsf_nine, &cost_fn);
+    assert!(cost_ucr_improved.is_infinite());
+
+    // w = query.len()
+    let cost_ucr_improved =
+        ucr_improved::dtw(&data, &query, &cb_null, query.len(), bsf_max, &cost_fn);
+    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
+
+    // w = query.len()+3
+    let cost_ucr_improved =
+        ucr_improved::dtw(&data, &query, &cb_null, query.len() + 3, bsf_max, &cost_fn);
+    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
+
+    // w = 3
     println!();
     println!("Improved Test 1");
-    println!("UB = {:.2}", cb[0]);
+    println!("UB : {:.2}", cb_null[0]);
+    println!("w  : {:.2}", w3);
+    println!("bsf: {:.2}", bsf_nine);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, 2, 9.0, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w3, bsf_nine, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
 
-    // Creates dummy cummulative lower bound
-    // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cb = vec![0.0; data.len()];
-
     println!();
     println!("Improved Test 2");
-    println!("UB = {:.2}", cb[0]);
+    println!("UB = {:.2}", cb_null[0]);
+    println!("w  : {:.2}", w3);
+    println!("bsf: {:.2}", bsf_six);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, 1, 6.0, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w3, bsf_six, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
-    assert!(false);
 }
 
 // Create random sequences for the query and the data time series
@@ -192,7 +214,7 @@ fn make_rdm_params(
     }
     let bsf = rng.gen_range(1000.0..2000.0);
 
-    let w = rng.gen_range(0..query.len());
+    let w = rng.gen_range(0..query.len() - 2);
 
     (query, data, cb_query, cb_data, w, bsf)
 }
