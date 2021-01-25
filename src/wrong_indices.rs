@@ -7,13 +7,12 @@ use std::ops::{Div, Sub};
 /// w  : size of Sakoe-Chiba warpping band
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
-pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
+pub fn dtw<T, F>(data: &[T], query: &[T], ub: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
 where
     T: Div<Output = T> + Sub<Output = T>,
     F: Fn(&T, &T) -> f64,
 {
     let mut cell_value; // TODO: REMOVE!!!
-    let mut ub;
 
     let co;
     let li;
@@ -34,34 +33,24 @@ where
     let mut cost_tmp;
 
     curr[0] = 0.0;
-    let mut next_start = 0;
-    let mut prev_pruning_point = 0;
+    let mut next_start = 1;
+    let mut prev_pruning_point = 1;
     let mut pruning_point = 0;
-    //let mut warping_end;
 
     // For each row of the cost matrix
-    'row_loop: for i in 0..li.len() {
-        /*println!();
-        for _ in 0..next_start {
-            print!("|  ");
-        }*/
-
-        ub = bsf - cb[i];
+    for i in 1..=li.len() {
+        println!();
 
         // Swap the current array with the previous array
         cost_tmp = curr;
         curr = prev;
         prev = cost_tmp;
 
-        prev_pruning_point = pruning_point;
-
         // Begin at the start column
         j = next_start;
-        // j = usize::max(next_start, i.saturating_sub(w));
-        //warping_end = usize::min(i + w, co.len());
 
         // Set the value left of the start to infinity so we can always use that value
-        curr[j] = f64::INFINITY; // This should be uneccessary
+        curr[j - 1] = f64::INFINITY; // This should be uneccessary
 
         // While we have not found a start (a cell with a lower cost than the UB)
         while j == next_start {
@@ -71,24 +60,24 @@ where
             // must exceed the UB so we don't bother looking at them
             if j < prev_pruning_point {
                 c = cost_fn(&li[i], &co[j]);
-                cell_value = c + f64::min(prev[j + 1], prev[j]);
+                cell_value = c + f64::min(prev[j], prev[j - 1]);
             // If the column equals the previous_pruning_point,
             // we still have a chance to find a valid match but
             // the top left subsequence is the only possibility for a valid path
             } else if j == prev_pruning_point {
                 c = cost_fn(&li[i], &co[j]);
-                cell_value = c + prev[j];
+                cell_value = c + prev[j - 1];
             // If j > prev_pruning_point and we haven't found a start yet,
             // we can abandon the calculation
             } else {
                 return f64::INFINITY;
             }
-            //print!("|{:>2}", cell_value);
-            curr[j + 1] = cell_value;
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
             // If the calculated sum of costs is lower than the UB,
             // then we found a valid match, so the pruning point of
             // this row must be further to the right. We also DON'T push the next_start to the right
-            if curr[j + 1] <= ub {
+            if curr[j] <= ub[i] {
                 pruning_point = j + 1;
             // If the cost is higher, its not a valid match so we need to continue looking for a start
             // We push the next_start to the right
@@ -97,9 +86,6 @@ where
             }
             // Increase the column index
             j += 1;
-            /*if j > warping_end {
-                continue 'row_loop;
-            }*/
         }
         // Once we found a start, we can now also have warping paths coming from the left
         // of the current cell, so we must consider that cell now too
@@ -109,57 +95,48 @@ where
         // exceed the cost matrix in this loop
         while j < prev_pruning_point {
             c = cost_fn(&li[i], &co[j]);
-            cell_value = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
-            //print!("|{:>2}", cell_value);
-            curr[j + 1] = cell_value;
-            if curr[j + 1] <= ub {
+            cell_value = c + f64::min(curr[j - 1], f64::min(prev[j], prev[j - 1]));
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[i] {
                 pruning_point = j + 1;
             }
             j += 1;
-            /*if j > warping_end {
-                continue 'row_loop;
-            }*/
         }
         // When reaching this point, we found a start and reached the prev_pruning_point,
         // but have not yet reached the end of the row.
         // The only possible warping paths are the left and top-left cells
         // At this point j = prev_pruning_point
-        if j == prev_pruning_point && j < co.len() {
+        if j <= co.len() {
             c = cost_fn(&li[i], &co[j]);
-            cell_value = c + f64::min(curr[j], prev[j]);
-            //print!("|{:>2}", cell_value);
-            curr[j + 1] = cell_value;
-            if curr[j + 1] <= ub {
+            cell_value = c + f64::min(curr[j - 1], prev[j - 1]);
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[i] {
                 pruning_point = j + 1;
             }
             j += 1;
-            /*if j > warping_end {
-                continue 'row_loop;
-            }*/
         }
         // Once we passed the prev_pruning_point, the only possible warping paths are from the left
         // and we can start with the next row once we found a value that is greater than the UB
-        while j < co.len() {
+        while j <= co.len() {
             c = cost_fn(&li[i], &co[j]);
-            cell_value = c + curr[j];
-            //print!("|{:>2}", cell_value);
-            curr[j + 1] = cell_value;
-            if curr[j + 1] <= ub {
+            cell_value = c + curr[j - 1];
+            print!("{} ", cell_value);
+            curr[j] = cell_value;
+            if curr[j] <= ub[i] {
                 pruning_point = j + 1;
             } else {
                 break; // Breaks the while loop
             }
             j += 1;
-            /*if j > warping_end {
-                continue 'row_loop;
-            }*/
         }
+        prev_pruning_point = pruning_point;
     }
     // The boundary constraint dictates, that the last points must match.
     // This only is the case, if the previous_pruning_point is pushed all the way to the right
-    if prev_pruning_point == co.len() {
-        curr[co.len()]
-    } else {
+    if prev_pruning_point <= co.len() {
         return f64::INFINITY;
     }
+    curr[co.len()]
 }

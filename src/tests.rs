@@ -60,21 +60,25 @@ fn ucr_equals_naive_dtw() {
 }
 
 #[test]
-fn ucr_equals_improved_dtw() {
+fn ucr_equals_improved_dtw_no_sakoe() {
     let cost_fn = dtw_cost::sq_l2_dist_1d;
-    // Create random sequences for the query and the data time series
-    // The observations are of type f64
-    // The time series length is between 0 and 300
-    let (data, query) = make_rdm_series((800, 900), None);
-    // Creates dummy cummulative lower bound
-    // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cb = vec![0.0; data.len()];
-    let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
-    let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
-    println!("UCR: {}", cost_ucr);
-    println!("Improved: {}", cost_ucr_improved);
-    assert!((cost_ucr_improved - cost_ucr).abs() < 0.000000000001);
+    for _ in 0..100 {
+        // Create random sequences for the query and the data time series
+        // The observations are of type f64
+        // The time series length is between 0 and 300
+        let (data, query, cb_data, cb_query, w, bsf) = make_rdm_params((800, 900), None);
+
+        let cost_ucr = ucr::dtw(&data, &query, &cb_query, query.len() - 2, bsf, &cost_fn);
+        let cost_ucr_improved =
+            ucr_improved::dtw(&data, &query, &cb_query, query.len() - 2, bsf, &cost_fn);
+
+        println!("Testing with w: {}", w);
+        println!("UCR     : {}", cost_ucr);
+        println!("Improved: {}", cost_ucr_improved);
+        if cost_ucr_improved.is_finite() && cost_ucr.is_finite() {
+            assert!((cost_ucr_improved - cost_ucr).abs() < 0.000000000001);
+        }
+    }
 }
 
 #[test]
@@ -85,13 +89,31 @@ fn improved_dtw() {
     // The time series length is between 0 and 300
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
+
+    // Creates dummy cummulative lower bound
+    let cb = vec![0.0; data.len()];
+
+    println!();
+    println!("Improved Test 1");
+    println!("UB = {:.2}", cb[0]);
+    println!("Matrix:");
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, data.len() - 2, 9.0, &cost_fn);
+    println!();
+    println!("DTW dist: {}", cost_ucr_improved);
+    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
+
     // Creates dummy cummulative lower bound
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cb = vec![9.0; data.len()];
-    let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
-    println!("Improved: {}", cost_ucr_improved);
-    assert!((cost_ucr_improved - 5.0).abs() < 0.000000000001);
+    let cb = vec![0.0; data.len()];
+
+    println!();
+    println!("Improved Test 2");
+    println!("UB = {:.2}", cb[0]);
+    println!("Matrix:");
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, data.len() - 2, 6.0, &cost_fn);
+    println!();
+    println!("DTW dist: {}", cost_ucr_improved);
+    assert!(cost_ucr_improved.is_infinite());
 }
 
 // Create random sequences for the query and the data time series
@@ -128,6 +150,49 @@ fn make_rdm_series(
     }
 
     (query, data)
+}
+
+fn make_rdm_params(
+    query_rng: (u32, u32),
+    data_rng: Option<(u32, u32)>,
+) -> (
+    std::vec::Vec<f64>,
+    std::vec::Vec<f64>,
+    std::vec::Vec<f64>,
+    std::vec::Vec<f64>,
+    usize,
+    f64,
+) {
+    use rand::thread_rng;
+    use rand::Rng;
+
+    let (query, data) = make_rdm_series(query_rng, data_rng);
+
+    let (mut cb_query, mut cb_data) = (Vec::new(), Vec::new());
+
+    let mut rng = thread_rng();
+    let mut observation: f64;
+    for i in 0..query.len() {
+        observation = rng.gen_range(0.0..0.1);
+        if i == 0 {
+            cb_query.push(observation);
+        } else {
+            cb_query.push(observation + cb_query[i - 1]);
+        }
+    }
+    for i in 0..data.len() {
+        observation = rand::random();
+        if i == 0 {
+            cb_data.push(observation);
+        } else {
+            cb_data.push(observation + cb_data[i - 1]);
+        }
+    }
+    let bsf = rng.gen_range(1000.0..2000.0);
+
+    let w = rng.gen_range(0..query.len());
+
+    (query, data, cb_query, cb_data, w, bsf)
 }
 
 fn make_test_series(equal_len: bool) -> (std::vec::Vec<SeriesType>, std::vec::Vec<SeriesType>) {
