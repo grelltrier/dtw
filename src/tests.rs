@@ -60,6 +60,7 @@ fn ucr_equals_naive_dtw() {
 }
 
 #[test]
+#[ignore]
 fn ucr_equals_improved_dtw_no_sakoe() {
     let cost_fn = dtw_cost::sq_l2_dist_1d;
     for _ in 0..100 {
@@ -97,7 +98,7 @@ fn improved_dtw() {
     println!("Improved Test 1");
     println!("UB = {:.2}", cb[0]);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, data.len() - 2, 9.0, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, 2, 9.0, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
@@ -110,10 +111,11 @@ fn improved_dtw() {
     println!("Improved Test 2");
     println!("UB = {:.2}", cb[0]);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, data.len() - 2, 6.0, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, 1, 6.0, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
+    assert!(false);
 }
 
 // Create random sequences for the query and the data time series

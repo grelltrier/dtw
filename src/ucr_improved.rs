@@ -37,14 +37,31 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
+
+    let mut warp_band_begin;
     //let mut warping_end;
 
     // For each row of the cost matrix
     'row_loop: for i in 0..li.len() {
-        /*println!();
-        for _ in 0..next_start {
+        // Begin at the start column
+        // j = next_start;
+        warp_band_begin = i.saturating_sub(w);
+        if next_start < warp_band_begin {
+            if next_start <= prev_pruning_point {
+                j = warp_band_begin;
+                next_start = warp_band_begin;
+            } else {
+                return f64::INFINITY;
+            }
+        } else {
+            j = next_start;
+        }
+        //warping_end = usize::min(i + w, co.len());
+
+        println!();
+        for _ in 0..j {
             print!("|  ");
-        }*/
+        }
 
         ub = bsf - cb[i];
 
@@ -54,11 +71,6 @@ where
         prev = cost_tmp;
 
         prev_pruning_point = pruning_point;
-
-        // Begin at the start column
-        j = next_start;
-        // j = usize::max(next_start, i.saturating_sub(w));
-        //warping_end = usize::min(i + w, co.len());
 
         // Set the value left of the start to infinity so we can always use that value
         curr[j] = f64::INFINITY; // This should be uneccessary
@@ -83,7 +95,7 @@ where
             } else {
                 return f64::INFINITY;
             }
-            //print!("|{:>2}", cell_value);
+            print!("|{:>2}", cell_value);
             curr[j + 1] = cell_value;
             // If the calculated sum of costs is lower than the UB,
             // then we found a valid match, so the pruning point of
@@ -110,7 +122,7 @@ where
         while j < prev_pruning_point {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
-            //print!("|{:>2}", cell_value);
+            print!("|{:>2}", cell_value);
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
@@ -127,7 +139,7 @@ where
         if j == prev_pruning_point && j < co.len() {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + f64::min(curr[j], prev[j]);
-            //print!("|{:>2}", cell_value);
+            print!("|{:>2}", cell_value);
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
@@ -142,7 +154,7 @@ where
         while j < co.len() {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + curr[j];
-            //print!("|{:>2}", cell_value);
+            print!("|{:>2}", cell_value);
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
