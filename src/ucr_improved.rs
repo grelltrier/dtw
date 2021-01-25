@@ -12,6 +12,7 @@ where
     T: Div<Output = T> + Sub<Output = T>,
     F: Fn(&T, &T) -> f64,
 {
+    let debug = false; // TODO: REMOVE!!
     let mut cell_value; // TODO: REMOVE!!!
     let mut ub;
 
@@ -57,9 +58,11 @@ where
         }
         warping_end = usize::min(i + w, co.len() - 1);
 
-        println!();
-        for _ in 0..j {
-            print!("|  ");
+        if debug {
+            println!();
+            for _ in 0..j {
+                print!("|  ");
+            }
         }
 
         ub = bsf - cb[i];
@@ -94,7 +97,9 @@ where
             } else {
                 return f64::INFINITY;
             }
-            print!("|{:>2}", cell_value);
+            if debug {
+                print!("|{:>2}", cell_value);
+            }
             curr[j + 1] = cell_value;
             // If the calculated sum of costs is lower than the UB,
             // then we found a valid match, so the pruning point of
@@ -121,7 +126,9 @@ where
         while j < prev_pruning_point {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
-            print!("|{:>2}", cell_value);
+            if debug {
+                print!("|{:>2}", cell_value);
+            }
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
@@ -138,7 +145,9 @@ where
         if j == prev_pruning_point && j < co.len() {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + f64::min(curr[j], prev[j]);
-            print!("|{:>2}", cell_value);
+            if debug {
+                print!("|{:>2}", cell_value);
+            }
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
@@ -153,7 +162,9 @@ where
         while j < co.len() {
             c = cost_fn(&li[i], &co[j]);
             cell_value = c + curr[j];
-            print!("|{:>2}", cell_value);
+            if debug {
+                print!("|{:>2}", cell_value);
+            }
             curr[j + 1] = cell_value;
             if curr[j + 1] <= ub {
                 pruning_point = j + 1;
