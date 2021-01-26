@@ -1,4 +1,5 @@
 use super::*;
+use std::cmp::Ordering;
 
 /// Calculate the Dynamic Time Wrapping distance
 /// data, query: data and query time series, respectively
@@ -77,23 +78,27 @@ where
 
         // While we have not found a start (a cell with a lower cost than the UB)
         while j == next_start {
-            // If the column is smaller than the previous_pruning_point,
-            // we can have valid warping paths from the top and top left of the cell.
-            // Since we have not found a start yet, all values left of the current cell
-            // must exceed the UB so we don't bother looking at them
-            if j < prev_pruning_point {
-                c = cost_fn(&li[i], &co[j]);
-                cell_value = c + f64::min(prev[j + 1], prev[j]);
-            // If the column equals the previous_pruning_point,
-            // we still have a chance to find a valid match but
-            // the top left subsequence is the only possibility for a valid path
-            } else if j == prev_pruning_point {
-                c = cost_fn(&li[i], &co[j]);
-                cell_value = c + prev[j];
-            // If j > prev_pruning_point and we haven't found a start yet,
-            // we can abandon the calculation
-            } else {
-                return f64::INFINITY;
+            match j.cmp(&prev_pruning_point) {
+                // If j > prev_pruning_point and we haven't found a start yet,
+                // we can abandon the calculation
+                Ordering::Greater => {
+                    return f64::INFINITY;
+                }
+                // If the column is smaller than the previous_pruning_point,
+                // we can have valid warping paths from the top and top left of the cell.
+                // Since we have not found a start yet, all values left of the current cell
+                // must exceed the UB so we don't bother looking at them
+                Ordering::Less => {
+                    c = cost_fn(&li[i], &co[j]);
+                    cell_value = c + f64::min(prev[j + 1], prev[j]);
+                }
+                // If the column equals the previous_pruning_point,
+                // we still have a chance to find a valid match but
+                // the top left subsequence is the only possibility for a valid path
+                Ordering::Equal => {
+                    c = cost_fn(&li[i], &co[j]);
+                    cell_value = c + prev[j];
+                }
             }
             if debug {
                 print!("|{:>2}", cell_value);
@@ -180,6 +185,6 @@ where
     if prev_pruning_point == co.len() {
         curr[co.len()]
     } else {
-        return f64::INFINITY;
+        f64::INFINITY
     }
 }
