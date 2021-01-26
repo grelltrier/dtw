@@ -117,7 +117,7 @@ where
             // Increase the column index
             j += 1;
             if j > warping_end {
-                continue 'row_loop;
+                return f64::INFINITY;
             }
         }
         // Once we found a start, we can now also have warping paths coming from the left
