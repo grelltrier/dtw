@@ -1,5 +1,4 @@
 use super::*;
-use std::ops::{Div, Sub};
 
 /// Calculate the Dynamic Time Wrapping distance
 /// data, query: data and query time series, respectively
@@ -9,7 +8,6 @@ use std::ops::{Div, Sub};
 /// cost_fn: Function to calculate the cost between observations
 pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
 where
-    T: Div<Output = T> + Sub<Output = T>,
     F: Fn(&T, &T) -> f64,
 {
     let debug = false; // TODO: REMOVE!!
