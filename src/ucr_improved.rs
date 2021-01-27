@@ -1,4 +1,3 @@
-use super::*;
 use std::cmp::Ordering;
 
 /// Calculate the Dynamic Time Wrapping distance
@@ -29,7 +28,7 @@ where
     let mut c; // Cost to match observation i and j with each other
 
     // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two array of size O(n).
-    let mut prev = Array::<f64, Ix1>::from_elem(co.len() + 1, f64::INFINITY);
+    let mut prev = vec![f64::INFINITY; co.len() + 1];
     let mut curr = prev.clone();
     let mut cost_tmp;
 

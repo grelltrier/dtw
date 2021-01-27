@@ -1,5 +1,3 @@
-use super::*;
-
 /// Calculate the Dynamic Time Wrapping distance
 /// data, query: data and query time series, respectively
 /// cb : cummulative bound used for early abandoning
@@ -15,7 +13,8 @@ where
     let data_len = data.len(); // Also called n
 
     // Instead of using matrix of size O(n^2) or O(nr), we will reuse two array of size O(n).
-    let mut cost = Array::<f64, Ix1>::from_elem(data_len, f64::INFINITY);
+
+    let mut cost = vec![f64::INFINITY; data_len];
     let mut cost_prev = cost.clone();
 
     // Variables to implement the pruning - PrunedDTW

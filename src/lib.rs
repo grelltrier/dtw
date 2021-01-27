@@ -1,5 +1,3 @@
-use ndarray::prelude::*;
-
 pub mod naive;
 pub mod naive_with_w;
 #[cfg(test)]

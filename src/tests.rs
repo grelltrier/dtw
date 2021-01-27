@@ -1,7 +1,5 @@
 use super::*;
 
-type SeriesType = ndarray::ArrayBase<ndarray::OwnedRepr<f64>, ndarray::Dim<[usize; 1]>>;
-
 #[test]
 // Tests the naive DTW with different cost functions for sequences of EQUAL and UNEQUAL lengths
 fn naive_dtw() {
@@ -9,21 +7,21 @@ fn naive_dtw() {
     let (query_unequal, data) = make_test_series(false);
 
     // UNEQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_unequal, dtw_cost::l2_dist, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::l2_dist_vec, false);
     assert!((0.55 - cost).abs() < 0.000000000001);
 
     // UNEQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_unequal, dtw_cost::sq_l2_dist, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::sq_l2_dist_vec, false);
     assert!((0.19329999999999 - cost).abs() < 0.000000000001);
 
     // ##### Sequences of EQUAL length #######
     let (query_equal, data) = make_test_series(true);
     // EQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_equal, dtw_cost::l2_dist, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::l2_dist_vec, false);
     assert!((3.29 - cost).abs() < 0.000000000001);
 
     // EQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_equal, dtw_cost::sq_l2_dist, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::sq_l2_dist_vec, false);
     assert!((4.5969 - cost).abs() < 0.000000000001);
 }
 
@@ -39,14 +37,14 @@ fn ucr_usp_dtw() {
         &cb,
         data.len() - 2,
         f64::INFINITY,
-        &dtw_cost::sq_l2_dist,
+        &dtw_cost::sq_l2_dist_vec,
     );
     assert!((4.5969 - cost_ucr).abs() < 0.000000000001);
 }
 
 #[test]
 fn ucr_equals_naive_dtw() {
-    let cost_fn = dtw_cost::sq_l2_dist_1d;
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
     // Create random sequences for the query and the data time series
     // The observations are of type f64
     // The time series length is between 0 and 300
@@ -60,9 +58,8 @@ fn ucr_equals_naive_dtw() {
 }
 
 #[test]
-//#[ignore]
 fn ucr_equals_improved_dtw() {
-    let cost_fn = dtw_cost::sq_l2_dist_1d;
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
     for _ in 0..100 {
         // Create random sequences for the query and the data time series
         // The observations are of type f64
@@ -83,7 +80,7 @@ fn ucr_equals_improved_dtw() {
 
 #[test]
 fn improved_dtw() {
-    let cost_fn = dtw_cost::sq_l2_dist_1d;
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
     // Create random sequences for the query and the data time series
     // The observations are of type f64
     // The time series length is between 0 and 300
@@ -219,22 +216,22 @@ fn make_rdm_params(
     (query, data, cb_query, cb_data, w, bsf)
 }
 
-fn make_test_series(equal_len: bool) -> (std::vec::Vec<SeriesType>, std::vec::Vec<SeriesType>) {
-    let a1 = array![1.0, 1.];
-    let a2 = array![2.0, 1.];
-    let a3 = array![3.0, 1.];
-    let a4 = array![2.0, 1.];
-    let a5 = array![2.13, 1.];
-    let a6 = array![1.0, 1.];
+fn make_test_series(equal_len: bool) -> (Vec<Vec<f64>>, Vec<Vec<f64>>) {
+    let a1 = vec![1.0, 1.];
+    let a2 = vec![2.0, 1.];
+    let a3 = vec![3.0, 1.];
+    let a4 = vec![2.0, 1.];
+    let a5 = vec![2.13, 1.];
+    let a6 = vec![1.0, 1.];
 
-    let b1 = array![1.0, 1.];
-    let b2 = array![1.0, 1.];
-    let b3 = array![2.0, 1.];
-    let b4 = array![2.0, 1.];
-    let b5 = array![2.42, 1.];
-    let b6 = array![3.0, 1.];
-    let b7 = array![2.0, 1.];
-    let b8 = array![1.0, 1.];
+    let b1 = vec![1.0, 1.];
+    let b2 = vec![1.0, 1.];
+    let b3 = vec![2.0, 1.];
+    let b4 = vec![2.0, 1.];
+    let b5 = vec![2.42, 1.];
+    let b6 = vec![3.0, 1.];
+    let b7 = vec![2.0, 1.];
+    let b8 = vec![1.0, 1.];
     let mut data = Vec::new();
     data.push(a1);
     data.push(a2);
