@@ -85,7 +85,7 @@ fn ucr_equals_improved_dtw() {
 }
 
 #[test]
-fn ucr_equals_improved_cb_test() {
+fn ucr_equals_improved_matching_in_very_last_cell_in_last_row() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let query = test_seq::make_knn_fail_query();
     let w = 12;
@@ -110,6 +110,26 @@ fn ucr_equals_improved_cb_test() {
     let cb2 = test_seq::make_knn_fail_cb2();
     let cost_ucr = ucr::dtw(&data, &query, &cb2, w, bsf2, &cost_fn);
     let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb2, w, bsf2, &cost_fn);
+
+    println!("UCR     : {}", cost_ucr);
+    println!("Improved: {}", cost_ucr_improved);
+    assert!(
+        cost_ucr_improved.is_infinite() && cost_ucr.is_infinite()
+            || (cost_ucr_improved - cost_ucr).abs() < 0.000000000001
+    );
+}
+
+#[test]
+fn ucr_equals_improved_unknown_bug() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let query = test_seq::make_knn_fail_query();
+    let w = 12;
+
+    let bsf = 277.270;
+    let data = test_seq::make_knn_fail_candidate(3);
+    let cb = test_seq::make_knn_fail_cb3();
+    let cost_ucr = ucr::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, w, bsf, &cost_fn);
 
     println!("UCR     : {}", cost_ucr);
     println!("Improved: {}", cost_ucr_improved);

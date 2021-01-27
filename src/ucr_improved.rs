@@ -44,7 +44,7 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = bsf - cb[w];
+    let mut ub = bsf - cb[w + 1];
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -63,6 +63,7 @@ where
             }
             // if we did reach the end of the row, we can't find a start so we return infinity
             else {
+                println!("Abort A");
                 return f64::INFINITY;
             }
         }
@@ -77,6 +78,7 @@ where
         if i + w < seq_short.len() - 1 {
             ub = bsf - cb[i + w + 1];
         }
+        println!("Improved: i={}, i+w={}, ub={}", i, i + w, ub);
 
         // Swap the current array with the previous array
         cost_tmp = curr;
@@ -111,6 +113,7 @@ where
                 // If j > prev_pruning_point and we haven't found a start yet,
                 // we can abandon the calculation
                 Ordering::Greater => {
+                    println!("Abort B");
                     return f64::INFINITY;
                 }
             }
@@ -129,6 +132,7 @@ where
             j += 1;
             // Check if we exceeded the warping end without having found a start
             if j > warping_end && j == next_start {
+                println!("Abort C");
                 return f64::INFINITY;
             }
         }
@@ -185,6 +189,12 @@ where
     if pruning_point == seq_short.len() {
         curr[seq_short.len()]
     } else {
+        println!("Abort D");
+        println!(
+            "pruning_point: {}, prev_pruning_point: {}",
+            pruning_point, prev_pruning_point
+        );
+        println!("Would have been: {}", curr[seq_short.len()]);
         f64::INFINITY
     }
 }
