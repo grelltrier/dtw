@@ -94,7 +94,6 @@ where
                 return f64::INFINITY;
             }
         }
-        println!("UCR:       i + w = {} and ub = {:.4}", i + w, ub);
 
         // Move current array to previous array.
         cost_tmp = cost;
