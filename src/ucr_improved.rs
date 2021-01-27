@@ -4,16 +4,13 @@ use std::cmp::Ordering;
 /// data, query: data and query time series, respectively
 /// cb : cummulative bound used for early abandoning
 /// w  : size of Sakoe-Chiba warpping band
+///      w MUST always be less than the length of the shortest sequence
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
 pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
 where
     F: Fn(&T, &T) -> f64,
 {
-    let debug = false; // TODO: REMOVE!!
-    let mut cell_value; // TODO: REMOVE!!!
-    let mut ub;
-
     let seq_short; // The shorter of the two sequences
     let seq_long; // The longer of the two sequences
 
@@ -31,13 +28,9 @@ where
         }
     }
 
-    /*if query.len() <= data.len() {
-        co = query;
-        li = data;
-    } else {
-        co = data;
-        li = query;
-    }*/
+    if w >= seq_short.len() {
+        panic!("w is greater than the shortest sequence! w was {}", w);
+    }
 
     let mut j; // Column index/index of the shorter sequence
     let mut c; // Cost to match observation i and j with each other
@@ -51,6 +44,7 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
+    let mut ub = bsf - cb[w];
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -79,16 +73,10 @@ where
         // Calculate the end of the row
         warping_end = usize::min(i + w, seq_short.len() - 1);
 
-        if debug {
-            println!();
-            // Print the empty columns at the beginning of the row
-            for _ in 0..j {
-                print!("|  ");
-            }
+        // Calculate the upper bound to early abandoning
+        if i + w < seq_short.len() - 1 {
+            ub = bsf - cb[i + w + 1];
         }
-
-        // Calculate the upper bound which can be used for early abandoning
-        ub = bsf - cb[i];
 
         // Swap the current array with the previous array
         cost_tmp = curr;
@@ -111,14 +99,14 @@ where
                 // must exceed the UB so we don't bother looking at them
                 Ordering::Less => {
                     c = cost_fn(&seq_long[i], &seq_short[j]);
-                    cell_value = c + f64::min(prev[j + 1], prev[j]);
+                    curr[j + 1] = c + f64::min(prev[j + 1], prev[j]);
                 }
                 // If the column equals the previous_pruning_point,
                 // we still have a chance to find a valid match but
                 // the top left subsequence is the only possibility for a valid path
                 Ordering::Equal => {
                     c = cost_fn(&seq_long[i], &seq_short[j]);
-                    cell_value = c + prev[j];
+                    curr[j + 1] = c + prev[j];
                 }
                 // If j > prev_pruning_point and we haven't found a start yet,
                 // we can abandon the calculation
@@ -126,15 +114,11 @@ where
                     return f64::INFINITY;
                 }
             }
-            if debug {
-                print!("|{:>2}", cell_value);
-            }
-            curr[j + 1] = cell_value;
             // If the calculated sum of costs is lower than the UB,
             // then we found a valid match, so the pruning point of
             // this row must be further to the right.
             // Also we found a valid start, so we DON'T push the next_start to the right
-            if curr[j + 1] <= ub {
+            if curr[j + 1] < ub {
                 pruning_point = j + 1;
             // If the cost is higher, it's not a valid match so we need to continue looking for a start
             // We push the next_start to the right
@@ -156,12 +140,8 @@ where
         // exceed the cost matrix in this loop
         while j < prev_pruning_point {
             c = cost_fn(&seq_long[i], &seq_short[j]);
-            cell_value = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
-            if debug {
-                print!("|{:>2}", cell_value);
-            }
-            curr[j + 1] = cell_value;
-            if curr[j + 1] <= ub {
+            curr[j + 1] = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
+            if curr[j + 1] < ub {
                 pruning_point = j + 1;
             }
             j += 1;
@@ -176,13 +156,9 @@ where
         // if j == prev_pruning_point && j < seq_short.len() {
         if j <= warping_end {
             c = cost_fn(&seq_long[i], &seq_short[j]);
-            cell_value = c + f64::min(curr[j], prev[j]);
-            if debug {
-                print!("|{:>2}", cell_value);
-            }
-            curr[j + 1] = cell_value;
+            curr[j + 1] = c + f64::min(curr[j], prev[j]);
 
-            if curr[j + 1] <= ub {
+            if curr[j + 1] < ub {
                 pruning_point = j + 1;
             }
 
@@ -193,12 +169,8 @@ where
         // and we can start with the next row once we found a value that is greater than the UB
         while j <= warping_end {
             c = cost_fn(&seq_long[i], &seq_short[j]);
-            cell_value = c + curr[j];
-            if debug {
-                print!("|{:>2}", cell_value);
-            }
-            curr[j + 1] = cell_value;
-            if curr[j + 1] <= ub {
+            curr[j + 1] = c + curr[j];
+            if curr[j + 1] < ub {
                 pruning_point = j + 1;
             } else {
                 // We found a value that is greater than the UB
@@ -209,8 +181,8 @@ where
         }
     }
     // The boundary constraint dictates, that the last points must match.
-    // This only is the case, if the previous_pruning_point is pushed all the way to the right
-    if prev_pruning_point == seq_short.len() {
+    // This only is the case, if the pruning_point of the last row is pushed all the way to the right
+    if pruning_point == seq_short.len() {
         curr[seq_short.len()]
     } else {
         f64::INFINITY

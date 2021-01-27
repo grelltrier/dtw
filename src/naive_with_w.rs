@@ -1,5 +1,5 @@
 /// Calculate the DTW cost of two sequences of vectors of n components with a naive implementation (no pruning or other optimizations)
-pub fn dtw<F, T>(series_a: &[T], series_b: &[T], w: usize, cost_fn: F, debug: bool) -> f64
+pub fn dtw<F, T>(series_a: &[T], series_b: &[T], w: usize, cost_fn: F) -> f64
 where
     F: Fn(&T, &T) -> f64,
     T: std::fmt::Debug,
@@ -25,7 +25,7 @@ where
     }
 
     // Print cost matrix
-    if debug {
+    /*
         for row_no in 0..series_a.len() + 1 {
             for cell_no in 0..series_b.len() + 1 {
                 print!(
@@ -39,7 +39,7 @@ where
             }
             println!();
         }
-    }
+    }*/
 
     // Return final cost
     cost_mtrx[series_a.len()][series_b.len()]

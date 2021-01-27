@@ -9,21 +9,21 @@ fn naive_dtw() {
     let (query_unequal, data) = test_seq::make_test_series(false);
 
     // UNEQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_unequal, dtw_cost::l2_dist_vec, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::l2_dist_vec);
     assert!((0.55 - cost).abs() < 0.000000000001);
 
     // UNEQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_unequal, dtw_cost::sq_l2_dist_vec, false);
+    let cost = naive::dtw(&data, &query_unequal, dtw_cost::sq_l2_dist_vec);
     assert!((0.19329999999999 - cost).abs() < 0.000000000001);
 
     // ##### Sequences of EQUAL length #######
     let (query_equal, data) = test_seq::make_test_series(true);
     // EQUAL lengths + l2_dist
-    let cost = naive::dtw(&data, &query_equal, dtw_cost::l2_dist_vec, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::l2_dist_vec);
     assert!((3.29 - cost).abs() < 0.000000000001);
 
     // EQUAL lengths + sq_l2_dist
-    let cost = naive::dtw(&data, &query_equal, dtw_cost::sq_l2_dist_vec, false);
+    let cost = naive::dtw(&data, &query_equal, dtw_cost::sq_l2_dist_vec);
     assert!((4.5969 - cost).abs() < 0.000000000001);
 }
 
@@ -55,7 +55,7 @@ fn ucr_equals_naive_dtw() {
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
     let cb = vec![0.0; data.len()];
     let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
-    let cost_naive = naive::dtw(&data, &query, cost_fn, false);
+    let cost_naive = naive::dtw(&data, &query, cost_fn);
     assert!(
         cost_naive.is_infinite() && cost_ucr.is_infinite()
             || (cost_naive - cost_ucr).abs() < 0.000000000001
@@ -69,7 +69,7 @@ fn ucr_equals_improved_dtw() {
         // Create random sequences for the query and the data time series
         // The observations are of type f64
         // The time series length is between 0 and 300
-        let (data, query, cb_data, cb_query, w, bsf) = test_seq::make_rdm_params((800, 900), None);
+        let (data, query, _, cb_query, w, bsf) = test_seq::make_rdm_params((800, 900), None);
 
         let cost_ucr = ucr::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
         let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
@@ -133,7 +133,6 @@ fn improved_dtw() {
     let cb_null = vec![0.0; data.len()];
     let bsf_six = 6.0;
     let bsf_nine = 9.10;
-    let bsf_max = f64::MAX;
 
     // ###### Sakoe-Chiba band variation ################
     // w = 0
@@ -143,16 +142,6 @@ fn improved_dtw() {
     // w = 1
     let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w1, bsf_nine, &cost_fn);
     assert!(cost_ucr_improved.is_infinite());
-
-    // w = query.len()
-    let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb_null, query.len(), bsf_max, &cost_fn);
-    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
-
-    // w = query.len()+3
-    let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb_null, query.len() + 3, bsf_max, &cost_fn);
-    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
 
     // w = 3
     println!();
@@ -176,4 +165,35 @@ fn improved_dtw() {
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
+
+    // w = query.len()-1
+    let cost_ucr_improved =
+        ucr_improved::dtw(&data, &query, &cb_null, query.len() - 1, bsf_nine, &cost_fn);
+    assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
+}
+
+#[test]
+#[should_panic]
+fn ucr_improved_w_equals_shortest_len() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let data = [3., 1., 4., 4., 1., 1.];
+    let query = [1., 3., 2., 1., 2., 2.];
+    let cb_null = vec![0.0; data.len()];
+    let bsf_max = f64::MAX;
+
+    // w = query.len()
+    ucr_improved::dtw(&data, &query, &cb_null, query.len(), bsf_max, &cost_fn);
+}
+
+#[test]
+#[should_panic]
+fn ucr_improved_w_greater_than_shortest_len() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let data = [3., 1., 4., 4., 1., 1.];
+    let query = [1., 3., 2., 1., 2., 2.];
+    let cb_null = vec![0.0; data.len()];
+    let bsf_max = f64::MAX;
+
+    // w = query.len() + 3
+    ucr_improved::dtw(&data, &query, &cb_null, query.len() + 3, bsf_max, &cost_fn);
 }
