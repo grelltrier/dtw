@@ -7,6 +7,5 @@ edition = "2018"
 [dependencies]
 
 [dev-dependencies]
-dtw_cost = { path = "../dtw_cost" }
-#dtw_cost = { git = "https://github.com/grelltrier/dtw_cost" }
+dtw_cost = { git = "https://github.com/grelltrier/dtw_cost" }
 rand = "0.8"
