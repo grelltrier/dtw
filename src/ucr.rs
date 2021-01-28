@@ -8,114 +8,111 @@ pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_f
 where
     F: Fn(&T, &T) -> f64,
 {
-    let mut cost_tmp;
-    let (mut x, mut y, mut z, mut min_cost);
     let data_len = data.len(); // Also called n
 
-    // Instead of using matrix of size O(n^2) or O(nr), we will reuse two array of size O(n).
-
+    // We reuse two Vecs so we have a space complexity of O(n)
     let mut cost = vec![f64::INFINITY; data_len];
     let mut cost_prev = cost.clone();
+    let mut cost_tmp;
 
     // Variables to implement the pruning - PrunedDTW
-    let mut sc = 0;
-    let mut ec = 0;
-    let mut next_ec;
-    let mut lp = 0; // lp stands for last pruning
-                    // TODO: Should this be initialized to 0? UCR_USP_suite does not intialize it at all it seems?
-    let mut ub = bsf - cb[w + 1]; // Shouldn't this be "bsf - cb[1]" instead?? the effect of warping is already taken care of by the envelope/calculating the cumBound
-    let mut found_sc: bool;
-    let mut pruned_ec = false;
-    let mut ini_j;
+
+    let mut j_init;
+    let mut j_end;
+
+    let mut start_found: bool; // Flag to remember, that a start for the next row was found
+    let mut next_start = 0; // Index at which the calculation will start for the next row
+    let mut ec = 0; // Index of the last column in which the cost was lower than UB
+    let mut ec_prev = 0; // Index at which we ended the previous row
+    let mut ub = bsf - cb[w + 1]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
+
+    let (mut cell_top, mut cell_left, mut cell_top_left, mut min_cost);
 
     for i in 0..data_len {
-        min_cost = f64::INFINITY;
+        min_cost = f64::MAX;
 
-        found_sc = false;
-        pruned_ec = false;
-        next_ec = i + w + 1;
+        start_found = false;
 
-        ini_j = usize::max(i.saturating_sub(w), sc);
+        // Calculate the first and last viable columns where we could find valid matches for the warping path
+        j_init = usize::max(i.saturating_sub(w), next_start);
+        j_end = usize::min(i + w, query.len() - 1);
 
-        for j in ini_j..(usize::min(data_len - 1, i + w) + 1) {
-            // Initialize all row and column
+        // For each value that can be potentially matched from the query, do
+        for j in j_init..j_end + 1 {
+            // Initialize the values for the first point of the sequences
             if (i == 0) && (j == 0) {
                 cost[j] = cost_fn(&data[0], &query[0]);
                 min_cost = cost[j];
-                found_sc = true;
+                start_found = true;
                 continue;
             }
 
-            if j == ini_j {
-                y = f64::INFINITY;
+            // Now we calculate the values of the neighboring cells from which a warping path can connect to
+            if j == j_init {
+                cell_left = f64::INFINITY;
             } else {
-                y = cost[j - 1];
+                cell_left = cost[j - 1];
             }
-            if (i == 0) || (j == i + w) || (j >= lp) {
-                x = f64::INFINITY;
+            if (i == 0) || (j == i + w) || (j > ec_prev) {
+                cell_top = f64::INFINITY;
             } else {
-                x = cost_prev[j];
+                cell_top = cost_prev[j];
             }
-            if (i == 0) || (j == 0) || (j > lp) {
-                z = f64::INFINITY;
+            if (i == 0) || (j == 0) || (j > ec_prev + 1) {
+                cell_top_left = f64::INFINITY;
             } else {
-                z = cost_prev[j - 1];
+                cell_top_left = cost_prev[j - 1];
             }
 
             // Classic DTW calculation
-            cost[j] = f64::min(f64::min(x, y), z) + cost_fn(&data[i], &query[j]);
+            cost[j] = f64::min(f64::min(cell_top, cell_top_left), cell_left)
+                + cost_fn(&data[i], &query[j]);
 
-            // Find minimum cost in row for early abandoning (possibly to use column instead of row).
+            // Find the minimum cost of the row
             if cost[j] < min_cost {
                 min_cost = cost[j];
             }
 
-            // Pruning criteria
-            if !found_sc && cost[j] <= ub {
-                sc = j;
-                found_sc = true;
-            }
-
-            if cost[j] > ub {
-                if j > ec {
-                    lp = j;
-                    pruned_ec = true;
-                    break;
+            // If the cost is lower than the UB,
+            if cost[j] < ub {
+                // and we previously have not found a start, we now found one and store its index
+                if !start_found {
+                    next_start = j;
+                    start_found = true;
                 }
-            } else {
-                next_ec = j + 1;
+                // and we remember the column at which we found a cost that is lower than the ub
+                ec = j;
+            // If the cost was greater or equal to the UB and we are past the end column of the previous row, we can abandon the rest of the row
+            } else if j > ec_prev + 1 {
+                // We break the loop, because we can contine with the next row
+                break;
             }
         }
 
         if i + w < data_len - 1 {
             ub = bsf - cb[i + w + 1];
-            // We can abandon early if the current cummulative distace with lower bound together are larger than bsf
-            if min_cost + cb[i + w + 1] >= bsf {
-                return f64::INFINITY;
-            }
         }
-        println!("UCR: i={}, i+w={}, ub={}", i, i + w, ub);
+
+        // We can abandon early if the minimum cost is larger than the UB
+        if min_cost >= ub {
+            return f64::INFINITY;
+        }
 
         // Move current array to previous array.
         cost_tmp = cost;
         cost = cost_prev;
         cost_prev = cost_tmp;
 
-        if sc > 0 {
-            cost_prev[sc - 1] = f64::INFINITY;
+        if next_start > 0 {
+            cost_prev[next_start - 1] = f64::INFINITY;
         }
 
-        if !pruned_ec {
-            lp = i + w + 1;
-        }
-
-        ec = next_ec;
+        ec_prev = ec;
     }
-    // If pruned in the last row
-    if pruned_ec {
-        cost_prev[data_len - 1] = f64::INFINITY;
+    // If pruned in the last row, the ec did not reach the end. In that case we did not beat the bsf and return INFINITY
+    if ec < query.len() - 1 {
+        return f64::INFINITY;
     }
 
-    // the DTW distance is in the last cell in the matrix of size O(m^2) or at the middle of our array.
     cost_prev[data_len - 1]
 }

@@ -44,7 +44,7 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = bsf - cb[w + 1];
+    let mut ub = bsf - cb[w + 1]; // TODO: Double check this initialization
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -63,7 +63,6 @@ where
             }
             // if we did reach the end of the row, we can't find a start so we return infinity
             else {
-                println!("Abort A");
                 return f64::INFINITY;
             }
         }
@@ -113,7 +112,6 @@ where
                 // If j > prev_pruning_point and we haven't found a start yet,
                 // we can abandon the calculation
                 Ordering::Greater => {
-                    println!("Abort B");
                     return f64::INFINITY;
                 }
             }
@@ -130,12 +128,13 @@ where
             }
             // Increase the column index
             j += 1;
+
             // Check if we exceeded the warping end without having found a start
             if j > warping_end && j == next_start {
-                println!("Abort C");
                 return f64::INFINITY;
             }
         }
+
         // Once we found a start, we can now also have warping paths coming from the left
         // of the current cell, so we must consider that cell now too
         // While the column is lower than the previous_pruning_point, we can have warping
@@ -149,10 +148,12 @@ where
                 pruning_point = j + 1;
             }
             j += 1;
+
             if j > warping_end {
                 continue 'row_loop;
             }
         }
+
         // When reaching this point, we found a start and reached the prev_pruning_point,
         // but if we have not reached the warping_end, we can still find valid warping paths so we continue.
         // The only possible warping paths are the left and top-left cells
@@ -179,22 +180,17 @@ where
             } else {
                 // We found a value that is greater than the UB
                 // All consecutive values must be even greater, so we can start with the next row
-                break;
+                continue 'row_loop;
             }
             j += 1;
         }
     }
+
     // The boundary constraint dictates, that the last points must match.
     // This only is the case, if the pruning_point of the last row is pushed all the way to the right
     if pruning_point == seq_short.len() {
         curr[seq_short.len()]
     } else {
-        println!("Abort D");
-        println!(
-            "pruning_point: {}, prev_pruning_point: {}",
-            pruning_point, prev_pruning_point
-        );
-        println!("Would have been: {}", curr[seq_short.len()]);
         f64::INFINITY
     }
 }

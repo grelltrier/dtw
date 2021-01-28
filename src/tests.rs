@@ -120,7 +120,7 @@ fn ucr_equals_improved_matching_in_very_last_cell_in_last_row() {
 }
 
 #[test]
-fn ucr_equals_improved_unknown_bug() {
+fn ucr_equals_improved_pruned_in_last_row() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let query = test_seq::make_knn_fail_query();
     let w = 12;
@@ -186,9 +186,9 @@ fn improved_dtw() {
     println!("DTW dist: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
 
-    // w = query.len()-1
+    // w = query.len()-2
     let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb_null, query.len() - 1, bsf_nine, &cost_fn);
+        ucr_improved::dtw(&data, &query, &cb_null, query.len() - 2, bsf_nine, &cost_fn);
     assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
 }
 
