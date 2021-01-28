@@ -44,7 +44,7 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = bsf - cb[w + 1]; // TODO: Double check this initialization
+    let mut ub = bsf - cb[w]; // TODO: Double check this initialization
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -73,11 +73,10 @@ where
         // Calculate the end of the row
         warping_end = usize::min(i + w, seq_short.len() - 1);
 
-        // Calculate the upper bound to early abandoning
+        // Calculate the upper bound for early abandoning
         if i + w < seq_short.len() - 1 {
             ub = bsf - cb[i + w + 1];
         }
-        println!("Improved: i={}, i+w={}, ub={}", i, i + w, ub);
 
         // Swap the current array with the previous array
         cost_tmp = curr;
@@ -134,7 +133,6 @@ where
                 return f64::INFINITY;
             }
         }
-
         // Once we found a start, we can now also have warping paths coming from the left
         // of the current cell, so we must consider that cell now too
         // While the column is lower than the previous_pruning_point, we can have warping
@@ -148,12 +146,7 @@ where
                 pruning_point = j + 1;
             }
             j += 1;
-
-            if j > warping_end {
-                continue 'row_loop;
-            }
         }
-
         // When reaching this point, we found a start and reached the prev_pruning_point,
         // but if we have not reached the warping_end, we can still find valid warping paths so we continue.
         // The only possible warping paths are the left and top-left cells
@@ -170,6 +163,7 @@ where
             // Increase the column and check if we reached the end of the row
             j += 1;
         }
+
         // Once we passed the prev_pruning_point but have not reached the warping_end, the only possible warping paths are from the left
         // and we can start with the next row once we found a value that is greater than the UB
         while j <= warping_end {

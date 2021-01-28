@@ -17,6 +17,9 @@ fn main() {
 -  "c = cost_fn(&li[i], &co[j]);" should be inserted above line 36
 
 
+- For early abandoning, it would make sense for the last value of cb to be zero, since it is the end of the warp path and no additional costs can accumulate anyways.
+  This potentially is a bug with the urc suite
+
 - For multi-dimensional data, when calculating the ED, it could abandon early by checking if the squared distance of one of the dimensions already exceeds
   the bsf of the best cell in that row
 

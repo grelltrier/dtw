@@ -24,7 +24,7 @@ where
     let mut next_start = 0; // Index at which the calculation will start for the next row
     let mut ec = 0; // Index of the last column in which the cost was lower than UB
     let mut ec_prev = 0; // Index at which we ended the previous row
-    let mut ub = bsf - cb[w + 1]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
+    let mut ub = bsf - cb[w]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
 
     let (mut cell_top, mut cell_left, mut cell_top_left, mut min_cost);
 
@@ -94,6 +94,7 @@ where
         }
 
         // We can abandon early if the minimum cost is larger than the UB
+        println!("i: {}, min_cost: {}, ub: {}", i, min_cost, ub);
         if min_cost >= ub {
             return f64::INFINITY;
         }

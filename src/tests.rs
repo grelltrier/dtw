@@ -140,6 +140,49 @@ fn ucr_equals_improved_pruned_in_last_row() {
 }
 
 #[test]
+fn ucr_improved_equals_naive_unknown_error() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let query = test_seq::make_knn_fail_query();
+    let w = 12;
+
+    let bsf = 186.719;
+    let data = test_seq::make_knn_fail_candidate(4);
+    let cb = test_seq::make_knn_fail_cb4();
+    let cost_naive = naive_with_w::dtw(&data, &query, w, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+
+    println!("Naive     : {}", cost_naive);
+    println!("Improved: {}", cost_ucr_improved);
+    // Naive should result in a cost of 185.60766984034788
+    assert!(
+        cost_ucr_improved.is_infinite() && cost_naive.is_infinite()
+            || (cost_ucr_improved - cost_naive).abs() < 0.000000000001
+    );
+}
+
+#[test]
+//#[ignore]
+fn ucr_equals_naive_unknown_error() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let query = test_seq::make_knn_fail_query();
+    let w = 12;
+
+    let bsf = 186.719;
+    let data = test_seq::make_knn_fail_candidate(4);
+    let cb = test_seq::make_knn_fail_cb4();
+    let cost_naive = naive_with_w::dtw(&data, &query, w, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+
+    println!("Naive     : {}", cost_naive);
+    println!("Improved: {}", cost_ucr);
+    // Naive should result in a cost of 185.60766984034788
+    assert!(
+        cost_ucr.is_infinite() && cost_naive.is_infinite()
+            || (cost_ucr - cost_naive).abs() < 0.000000000001
+    );
+}
+
+#[test]
 fn improved_dtw() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     // Create random sequences for the query and the data time series
