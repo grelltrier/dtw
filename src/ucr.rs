@@ -94,7 +94,6 @@ where
         }
 
         // We can abandon early if the minimum cost is larger than the UB
-        println!("i: {}, min_cost: {}, ub: {}", i, min_cost, ub);
         if min_cost >= ub {
             return f64::INFINITY;
         }
