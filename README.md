@@ -1,3 +1,5 @@
+[![dependency status](https://deps.rs/repo/github/grelltrier/dtw/status.svg)](https://deps.rs/repo/github/grelltrier/dtw)
+
 # DTW
 This is an implementation of the DTW algorithm in Rust. It is possible to calculate the similarity of two sequences of observations. You can provide a closure/function to calculate the cost between observations. You could for example use the squared euclidean distance if your observations are points or n dimensions. The fastest implementation is in the module ucr_improved
 
