@@ -32,11 +32,10 @@ fn ucr_usp_dtw() {
     let (query, data) = test_seq::make_test_series(true);
     // Creates dummy cummulative lower bound
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cb = vec![0.0; data.len()];
     let cost_ucr = ucr::dtw(
         &data,
         &query,
-        &cb,
+        None,
         data.len() - 2,
         f64::INFINITY,
         &dtw_cost::sq_l2_dist_vec,
@@ -53,8 +52,7 @@ fn ucr_equals_naive_dtw() {
     let (data, query) = test_seq::make_rdm_series((800, 900), None);
     // Creates dummy cummulative lower bound
     // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cb = vec![0.0; data.len()];
-    let cost_ucr = ucr::dtw(&data, &query, &cb, data.len() - 2, f64::INFINITY, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, None, data.len() - 2, f64::INFINITY, &cost_fn);
     let cost_naive = naive::dtw(&data, &query, cost_fn);
     assert!(
         cost_naive.is_infinite() && cost_ucr.is_infinite()
@@ -71,8 +69,8 @@ fn ucr_equals_improved_dtw() {
         // The time series length is between 0 and 300
         let (data, query, _, cb_query, w, bsf) = test_seq::make_rdm_params((800, 900), None);
 
-        let cost_ucr = ucr::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
-        let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_query, w, bsf, &cost_fn);
+        let cost_ucr = ucr::dtw(&data, &query, Some(&cb_query), w, bsf, &cost_fn);
+        let cost_ucr_improved = ucr_improved::dtw(&data, &query, Some(&cb_query), w, bsf, &cost_fn);
 
         println!("Testing with w: {}", w);
         println!("UCR     : {}", cost_ucr);
@@ -94,8 +92,8 @@ fn ucr_equals_improved_matching_in_very_last_cell_in_last_row() {
     let bsf1 = 277.270;
     let data = test_seq::make_knn_fail_candidate(1);
     let cb1 = test_seq::make_knn_fail_cb1();
-    let cost_ucr = ucr::dtw(&data, &query, &cb1, w, bsf1, &cost_fn);
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb1, w, bsf1, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, Some(&cb1), w, bsf1, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, Some(&cb1), w, bsf1, &cost_fn);
 
     println!("UCR     : {}", cost_ucr);
     println!("Improved: {}", cost_ucr_improved);
@@ -108,8 +106,8 @@ fn ucr_equals_improved_matching_in_very_last_cell_in_last_row() {
     let bsf2 = 247.213;
     let data = test_seq::make_knn_fail_candidate(2);
     let cb2 = test_seq::make_knn_fail_cb2();
-    let cost_ucr = ucr::dtw(&data, &query, &cb2, w, bsf2, &cost_fn);
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb2, w, bsf2, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, Some(&cb2), w, bsf2, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, Some(&cb2), w, bsf2, &cost_fn);
 
     println!("UCR     : {}", cost_ucr);
     println!("Improved: {}", cost_ucr_improved);
@@ -128,8 +126,8 @@ fn ucr_equals_improved_pruned_in_last_row() {
     let bsf = 277.270;
     let data = test_seq::make_knn_fail_candidate(3);
     let cb = test_seq::make_knn_fail_cb3();
-    let cost_ucr = ucr::dtw(&data, &query, &cb, w, bsf, &cost_fn);
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, Some(&cb), w, bsf, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, Some(&cb), w, bsf, &cost_fn);
 
     println!("UCR     : {}", cost_ucr);
     println!("Improved: {}", cost_ucr_improved);
@@ -147,7 +145,7 @@ fn ucr_improved_pruned_with_last_value_in_cb() {
     let bsf = 186.719;
     let data = test_seq::make_knn_fail_candidate(4);
     let cb = test_seq::make_knn_fail_cb4();
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, Some(&cb), w, bsf, &cost_fn);
     println!("Improved: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
 }
@@ -160,7 +158,7 @@ fn ucr_pruned_with_last_value_in_cb() {
     let bsf = 186.719;
     let data = test_seq::make_knn_fail_candidate(4);
     let cb = test_seq::make_knn_fail_cb4();
-    let cost_ucr = ucr::dtw(&data, &query, &cb, w, bsf, &cost_fn);
+    let cost_ucr = ucr::dtw(&data, &query, Some(&cb), w, bsf, &cost_fn);
     println!("Improved: {}", cost_ucr);
     assert!(cost_ucr.is_infinite());
 }
@@ -176,45 +174,44 @@ fn improved_dtw() {
     let w0 = 0;
     let w1 = 1;
     let w3 = 3;
-    let cb_null = vec![0.0; data.len()];
     let bsf_six = 6.0;
     let bsf_nine = 9.10;
 
     // ###### Sakoe-Chiba band variation ################
     // w = 0
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w0, bsf_nine, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, None, w0, bsf_nine, &cost_fn);
     assert!(cost_ucr_improved.is_infinite());
 
     // w = 1
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w1, bsf_nine, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, None, w1, bsf_nine, &cost_fn);
     assert!(cost_ucr_improved.is_infinite());
 
     // w = 3
     println!();
     println!("Improved Test 1");
-    println!("UB : {:.2}", cb_null[0]);
+    println!("UB : {:.2}", 0.0);
     println!("w  : {:.2}", w3);
     println!("bsf: {:.2}", bsf_nine);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w3, bsf_nine, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, None, w3, bsf_nine, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
 
     println!();
     println!("Improved Test 2");
-    println!("UB = {:.2}", cb_null[0]);
+    println!("UB = {:.2}", 0.0);
     println!("w  : {:.2}", w3);
     println!("bsf: {:.2}", bsf_six);
     println!("Matrix:");
-    let cost_ucr_improved = ucr_improved::dtw(&data, &query, &cb_null, w3, bsf_six, &cost_fn);
+    let cost_ucr_improved = ucr_improved::dtw(&data, &query, None, w3, bsf_six, &cost_fn);
     println!();
     println!("DTW dist: {}", cost_ucr_improved);
     assert!(cost_ucr_improved.is_infinite());
 
     // w = query.len()-2
     let cost_ucr_improved =
-        ucr_improved::dtw(&data, &query, &cb_null, query.len() - 2, bsf_nine, &cost_fn);
+        ucr_improved::dtw(&data, &query, None, query.len() - 2, bsf_nine, &cost_fn);
     assert!((cost_ucr_improved - 9.0).abs() < 0.000000000001);
 }
 
@@ -224,11 +221,10 @@ fn ucr_improved_w_equals_shortest_len() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
-    let cb_null = vec![0.0; data.len()];
     let bsf_max = f64::MAX;
 
     // w = query.len()
-    ucr_improved::dtw(&data, &query, &cb_null, query.len(), bsf_max, &cost_fn);
+    ucr_improved::dtw(&data, &query, None, query.len(), bsf_max, &cost_fn);
 }
 
 #[test]
@@ -237,9 +233,8 @@ fn ucr_improved_w_greater_than_shortest_len() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
-    let cb_null = vec![0.0; data.len()];
     let bsf_max = f64::MAX;
 
     // w = query.len() + 3
-    ucr_improved::dtw(&data, &query, &cb_null, query.len() + 3, bsf_max, &cost_fn);
+    ucr_improved::dtw(&data, &query, None, query.len() + 3, bsf_max, &cost_fn);
 }

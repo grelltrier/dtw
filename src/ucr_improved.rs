@@ -7,7 +7,14 @@ use std::cmp::Ordering;
 ///      w MUST always be less than the length of the shortest sequence
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
-pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
+pub fn dtw<T, F>(
+    data: &[T],
+    query: &[T],
+    cb: Option<&[f64]>,
+    w: usize,
+    bsf: f64,
+    cost_fn: &F,
+) -> f64
 where
     F: Fn(&T, &T) -> f64,
 {
@@ -28,8 +35,8 @@ where
         }
     }
 
-    if w >= cb.len() {
-        panic!("w is greater than the cb! w was {}", w);
+    if w >= seq_short.len() {
+        panic!("w is greater than the shorter sequence! w was {}", w);
     }
 
     let mut j; // Column index/index of the shorter sequence
@@ -44,7 +51,7 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = bsf - cb[w]; // TODO: Double check this initialization
+    let mut ub = if let Some(cb) = cb { bsf - cb[w] } else { bsf };
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -75,7 +82,11 @@ where
 
         // Calculate the upper bound for early abandoning
         if i + w < seq_short.len() - 1 {
-            ub = bsf - cb[i + w + 1];
+            ub = if let Some(cb) = cb {
+                bsf - cb[i + w + 1]
+            } else {
+                bsf
+            };
         }
 
         // Swap the current array with the previous array

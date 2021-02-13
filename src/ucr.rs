@@ -4,7 +4,14 @@
 /// w  : size of Sakoe-Chiba warpping band
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
-pub fn dtw<T, F>(data: &[T], query: &[T], cb: &[f64], w: usize, bsf: f64, cost_fn: &F) -> f64
+pub fn dtw<T, F>(
+    data: &[T],
+    query: &[T],
+    cb: Option<&[f64]>,
+    w: usize,
+    bsf: f64,
+    cost_fn: &F,
+) -> f64
 where
     F: Fn(&T, &T) -> f64,
 {
@@ -24,7 +31,10 @@ where
     let mut next_start = 0; // Index at which the calculation will start for the next row
     let mut ec = 0; // Index of the last column in which the cost was lower than UB
     let mut ec_prev = 0; // Index at which we ended the previous row
-    let mut ub = bsf - cb[w]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
+
+    let mut ub = if let Some(cb) = cb { bsf - cb[w] } else { bsf };
+
+    //let mut ub = bsf - cb[w]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
 
     let (mut cell_top, mut cell_left, mut cell_top_left, mut min_cost);
 
@@ -90,7 +100,11 @@ where
         }
 
         if i + w < data_len - 1 {
-            ub = bsf - cb[i + w + 1];
+            ub = if let Some(cb) = cb {
+                bsf - cb[i + w + 1]
+            } else {
+                bsf
+            };
         }
 
         // We can abandon early if the minimum cost is larger than the UB
