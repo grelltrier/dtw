@@ -15,6 +15,15 @@ pub fn dtw<T, F>(
 where
     F: Fn(&T, &T) -> f64,
 {
+    if let Some(cb) = cb {
+        if w >= cb.len() {
+            panic!(
+                "w is greater than the length of the cumulative bound! w was {}",
+                w
+            );
+        }
+    }
+
     let data_len = data.len(); // Also called n
 
     // We reuse two Vecs so we have a space complexity of O(n)

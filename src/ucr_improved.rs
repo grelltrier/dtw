@@ -35,8 +35,13 @@ where
         }
     }
 
-    if w >= seq_short.len() {
-        panic!("w is greater than the shorter sequence! w was {}", w);
+    if let Some(cb) = cb {
+        if w >= cb.len() {
+            panic!(
+                "w is greater than the length of the cumulative bound! w was {}",
+                w
+            );
+        }
     }
 
     let mut j; // Column index/index of the shorter sequence

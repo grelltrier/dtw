@@ -217,24 +217,26 @@ fn improved_dtw() {
 
 #[test]
 #[should_panic]
-fn ucr_improved_w_equals_shortest_len() {
+fn ucr_improved_w_equals_cb_len() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
+    let cb = [1., 3., 2., 1., 2., 2.];
     let bsf_max = f64::MAX;
 
     // w = query.len()
-    ucr_improved::dtw(&data, &query, None, query.len(), bsf_max, &cost_fn);
+    ucr_improved::dtw(&data, &query, Some(&cb), cb.len(), bsf_max, &cost_fn);
 }
 
 #[test]
 #[should_panic]
-fn ucr_improved_w_greater_than_shortest_len() {
+fn ucr_improved_w_greater_than_cb_len() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let data = [3., 1., 4., 4., 1., 1.];
     let query = [1., 3., 2., 1., 2., 2.];
+    let cb = [1., 3., 2., 1., 2., 2.];
     let bsf_max = f64::MAX;
 
     // w = query.len() + 3
-    ucr_improved::dtw(&data, &query, None, query.len() + 3, bsf_max, &cost_fn);
+    ucr_improved::dtw(&data, &query, Some(&cb), cb.len() + 3, bsf_max, &cost_fn);
 }
