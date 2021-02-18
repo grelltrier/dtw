@@ -83,6 +83,29 @@ fn ucr_equals_improved_dtw() {
 }
 
 #[test]
+fn ucr_equals_improved_iter_dtw() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    for _ in 0..1000 {
+        // Create random sequences for the query and the data time series
+        // The observations are of type f64
+        // The time series length is between 0 and 300
+        let (data, query, _, cb_query, w, bsf) = test_seq::make_rdm_params((800, 900), None);
+
+        let cost_ucr = ucr::dtw(&data, &query, Some(&cb_query), w, bsf, &cost_fn);
+        let cost_ucr_improved =
+            ucr_improved_iter::dtw(&data, query.into_iter(), Some(&cb_query), w, bsf, &cost_fn);
+
+        println!("Testing with w: {}", w);
+        println!("UCR     : {}", cost_ucr);
+        println!("Improved: {}", cost_ucr_improved);
+        assert!(
+            cost_ucr_improved.is_infinite() && cost_ucr.is_infinite()
+                || (cost_ucr_improved - cost_ucr).abs() < 0.000000000001
+        );
+    }
+}
+
+#[test]
 fn ucr_equals_improved_matching_in_very_last_cell_in_last_row() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
     let query = test_seq::make_knn_fail_query();
