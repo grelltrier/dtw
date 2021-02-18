@@ -85,7 +85,7 @@ fn ucr_equals_improved_dtw() {
 #[test]
 fn ucr_equals_improved_iter_dtw() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
-    for _ in 0..1000 {
+    for _ in 0..100 {
         // Create random sequences for the query and the data time series
         // The observations are of type f64
         // The time series length is between 0 and 300
