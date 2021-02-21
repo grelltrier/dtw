@@ -263,3 +263,22 @@ fn ucr_improved_w_greater_than_cb_len() {
     // w = query.len() + 3
     ucr_improved::dtw(&data, &query, Some(&cb), cb.len() + 3, bsf_max, &cost_fn);
 }
+
+#[test]
+// If the warping window is too small, it becomes impossible for sequences of unequal length to have a distance other than infinity
+fn ucr_improved_warping_window_so_small_no_result_possible() {
+    let cost_fn = dtw_cost::sq_l2_dist_f64;
+    let data = [3., 1., 4., 4., 1., 1.];
+    let query = [1., 3., 2., 1.];
+    let bsf_max = f64::MAX;
+    let w = 1;
+
+    let cost_ucr_improved = ucr_improved::dtw(&query, &data, None, w, bsf_max, &cost_fn);
+    assert!(cost_ucr_improved.is_infinite());
+
+    let cost_ucr = ucr::dtw(&query, &data, None, w, bsf_max, &cost_fn);
+    assert!(cost_ucr.is_infinite());
+
+    let cost_infinity = naive_with_w::dtw(&query, &data, w, &cost_fn);
+    assert!(cost_infinity.is_infinite());
+}

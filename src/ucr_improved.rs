@@ -35,19 +35,28 @@ where
         }
     }
 
+    // Test if the warping window is so small, that it is impossible to find a valid result
+    if w < seq_long.len() - seq_short.len() {
+        return f64::INFINITY;
+    }
+
+    let mut ub;
     if let Some(cb) = cb {
         if w >= cb.len() {
             panic!(
                 "w is greater than the length of the cumulative bound! w was {}",
                 w
             );
-        }
-    }
+        };
+        ub = bsf - cb[w]
+    } else {
+        ub = bsf
+    };
 
     let mut j; // Column index/index of the shorter sequence
     let mut c; // Cost to match observation i and j with each other
 
-    // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two array of size O(n).
+    // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two vecs of size O(n).
     let mut prev = vec![f64::INFINITY; seq_short.len() + 1];
     let mut curr = prev.clone();
     let mut cost_tmp;
@@ -56,10 +65,9 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = if let Some(cb) = cb { bsf - cb[w] } else { bsf };
 
     let mut warp_band_begin;
-    let mut warping_end;
+    let mut warping_band_end;
 
     // For each row of the cost matrix
     'row_loop: for i in 0..seq_long.len() {
@@ -83,14 +91,12 @@ where
         j = next_start;
 
         // Calculate the end of the row
-        warping_end = usize::min(i + w, seq_short.len() - 1);
+        warping_band_end = usize::min(i + w, seq_short.len() - 1);
 
         // Calculate the upper bound for early abandoning
         if i + w < seq_short.len() - 1 {
-            ub = if let Some(cb) = cb {
-                bsf - cb[i + w + 1]
-            } else {
-                bsf
+            if let Some(cb) = cb {
+                ub = bsf - cb[i + w + 1]
             };
         }
 
@@ -145,7 +151,7 @@ where
             j += 1;
 
             // Check if we exceeded the warping end without having found a start
-            if j > warping_end && j == next_start {
+            if j > warping_band_end && j == next_start {
                 return f64::INFINITY;
             }
         }
@@ -168,7 +174,7 @@ where
         // The only possible warping paths are the left and top-left cells
         // At this point j == prev_pruning_point
         // if j == prev_pruning_point && j < seq_short.len() {
-        if j <= warping_end {
+        if j <= warping_band_end {
             c = cost_fn(&seq_long[i], &seq_short[j]);
             curr[j + 1] = c + f64::min(curr[j], prev[j]);
 
@@ -182,7 +188,7 @@ where
 
         // Once we passed the prev_pruning_point but have not reached the warping_end, the only possible warping paths are from the left
         // and we can start with the next row once we found a value that is greater than the UB
-        while j <= warping_end {
+        while j <= warping_band_end {
             c = cost_fn(&seq_long[i], &seq_short[j]);
             curr[j + 1] = c + curr[j];
             if curr[j + 1] < ub {

@@ -19,14 +19,18 @@ where
     F: Fn(&T, &T) -> f64,
     I: Iterator<Item = T>,
 {
+    let mut ub;
     if let Some(cb) = cb {
         if w >= cb.len() {
             panic!(
                 "w is greater than the length of the cumulative bound! w was {}",
                 w
             );
-        }
-    }
+        };
+        ub = bsf - cb[w]
+    } else {
+        ub = bsf
+    };
 
     let mut j; // Column index/index of the shorter sequence
     let mut c; // Cost to match observation i and j with each other
@@ -40,7 +44,6 @@ where
     let mut next_start = 0;
     let mut prev_pruning_point = 0;
     let mut pruning_point = 0;
-    let mut ub = if let Some(cb) = cb { bsf - cb[w] } else { bsf };
 
     let mut warp_band_begin;
     let mut warping_end;
@@ -71,10 +74,8 @@ where
 
         // Calculate the upper bound for early abandoning
         if i + w < seq_short.len() - 1 {
-            ub = if let Some(cb) = cb {
-                bsf - cb[i + w + 1]
-            } else {
-                bsf
+            if let Some(cb) = cb {
+                ub = bsf - cb[i + w + 1]
             };
         }
 

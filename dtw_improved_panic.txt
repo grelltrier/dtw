@@ -1,0 +1,19 @@
+Application crashes when drawing path sometimes
+
+thread 'main' panicked at 'index out of bounds: the len is 12 but the index is 12', /home/batman/.cargo/git/checkouts/dtw-4c6a7b0b1001bfe0/8951038/src/ucr_improved.rs:124:48
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+drawn path:
+0.719,0.049
+0.578,0.065
+0.564,0.068
+0.417,0.105
+0.397,0.108
+0.378,0.114
+0.261,0.138
+0.258,0.142
+0.222,0.154
+0.219,0.154
+0.219,0.154
+0.219,0.154

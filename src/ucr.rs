@@ -15,14 +15,29 @@ pub fn dtw<T, F>(
 where
     F: Fn(&T, &T) -> f64,
 {
+    // Test if the warping window is so small, that it is impossible to find a valid result
+    if data.len() >= query.len() {
+        if w < data.len() - query.len() {
+            return f64::INFINITY;
+        }
+    } else {
+        if w < query.len() - data.len() {
+            return f64::INFINITY;
+        }
+    }
+
+    let mut ub;
     if let Some(cb) = cb {
         if w >= cb.len() {
             panic!(
                 "w is greater than the length of the cumulative bound! w was {}",
                 w
             );
-        }
-    }
+        };
+        ub = bsf - cb[w]
+    } else {
+        ub = bsf
+    };
 
     let data_len = data.len(); // Also called n
 
@@ -40,10 +55,6 @@ where
     let mut next_start = 0; // Index at which the calculation will start for the next row
     let mut ec = 0; // Index of the last column in which the cost was lower than UB
     let mut ec_prev = 0; // Index at which we ended the previous row
-
-    let mut ub = if let Some(cb) = cb { bsf - cb[w] } else { bsf };
-
-    //let mut ub = bsf - cb[w]; // Upper bound which the cost needs to stay below, otherwise we know we can not find a cost that is lower than the bsf
 
     let (mut cell_top, mut cell_left, mut cell_top_left, mut min_cost);
 
@@ -109,10 +120,8 @@ where
         }
 
         if i + w < data_len - 1 {
-            ub = if let Some(cb) = cb {
-                bsf - cb[i + w + 1]
-            } else {
-                bsf
+            if let Some(cb) = cb {
+                ub = bsf - cb[i + w + 1]
             };
         }
 
