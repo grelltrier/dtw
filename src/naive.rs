@@ -1,10 +1,10 @@
-/// Calculate the DTW cost of two sequences of vectors of n components with a naive implementation (no pruning or other optimizations)
+/// Calculate the DTW cost between two sequences of observations of n dimensions with a naive implementation (no pruning or other optimizations)
 pub fn dtw<F, T>(series_a: &[T], series_b: &[T], cost_fn: F) -> f64
 where
     F: Fn(&T, &T) -> f64,
     T: std::fmt::Debug,
 {
-    // Init cost matrix
+    // Initialize the cost matrix
     let row = vec![f64::INFINITY; series_b.len() + 1];
     let mut cost_mtrx = vec![row; series_b.len() + 1];
     cost_mtrx[0][0] = 0.;
