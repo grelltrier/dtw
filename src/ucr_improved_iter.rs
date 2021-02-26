@@ -35,7 +35,7 @@ where
     let mut j; // Column index/index of the shorter sequence
     let mut c; // Cost to match observation i and j with each other
 
-    // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two array of size O(n).
+    // Instead of using matrix of size O(n^2) or O(n*w), we will reuse two vecs of size O(n).
     let mut prev = vec![f64::INFINITY; seq_short.len() + 1];
     let mut curr = prev.clone();
     let mut cost_tmp;

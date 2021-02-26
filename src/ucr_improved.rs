@@ -22,7 +22,7 @@ where
     let seq_long; // The longer of the two sequences
 
     // Find out, which of the sequences is shorter
-    // This is important, because the time complexity is O(n)
+    // This is important, because the space complexity is O(n)
     // So by choosing the shorter of the sequences, we save space
     match query.len().cmp(&data.len()) {
         Ordering::Less | Ordering::Equal => {
