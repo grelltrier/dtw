@@ -5,17 +5,17 @@ where
     T: std::fmt::Debug,
 {
     // Init cost matrix
-    let row = vec![f64::INFINITY; series_b.len() + 1];
+    let row = vec![f64::INFINITY; series_a.len() + 1];
     let mut cost_mtrx = vec![row; series_b.len() + 1];
     cost_mtrx[0][0] = 0.;
 
     // Calculate cost matrix
-    for i in 1..=series_a.len() {
+    for i in 1..=series_b.len() {
         let w_start = (i - 1).saturating_sub(w) + 1;
-        let w_end = usize::min(series_b.len(), i + w);
+        let w_end = usize::min(series_a.len(), i + w);
 
         for j in w_start..=w_end {
-            let cost = cost_fn(&series_a[i - 1], &series_b[j - 1]);
+            let cost = cost_fn(&series_a[j - 1], &series_b[i - 1]);
             cost_mtrx[i][j] = cost
                 + f64::min(
                     f64::min(cost_mtrx[i - 1][j], cost_mtrx[i][j - 1]),
@@ -42,5 +42,5 @@ where
     }*/
 
     // Return final cost
-    cost_mtrx[series_a.len()][series_b.len()]
+    cost_mtrx[series_b.len()][series_a.len()]
 }
