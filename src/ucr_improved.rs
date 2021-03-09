@@ -62,12 +62,12 @@ where
     let mut cost_tmp;
 
     curr[0] = 0.0;
-    let mut next_start = 0;
-    let mut prev_pruning_point = 0;
-    let mut pruning_point = 0;
+    let mut next_start = 0; // column to start at in the next row
+    let mut prev_pruning_point = 0; // column at which the previous row was pruned
+    let mut pruning_point = 0; // column at which the current row is pruned. This gets pushed back
 
-    let mut warp_band_begin;
-    let mut warping_band_end;
+    let mut warp_band_begin; // column at which the warping band begins
+    let mut warping_band_end; // column at which the warping band ends
 
     // For each row of the cost matrix
     'row_loop: for i in 0..seq_long.len() {
