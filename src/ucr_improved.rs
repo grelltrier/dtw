@@ -10,6 +10,9 @@ use std::cmp::Ordering;
 ///      function panics
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
+///
+/// This implemenatation was inspired bz the algorithm suggested
+/// in https://arxiv.org/abs/2010.05371
 pub fn dtw<T, F>(
     series_a: &[T],
     series_b: &[T],
@@ -132,7 +135,7 @@ where
                 // If the column is smaller than the
                 // previous_pruning_point, we can have valid
                 // warping paths from the top and top left of the
-                // cell. Since we have not found a start yet, all 
+                // cell. Since we have not found a start yet, all
                 // values left of the current cell must exceed the
                 // UB so we don't bother looking at them
                 Ordering::Less => {
@@ -179,15 +182,14 @@ where
         // paths coming from the left of the current cell, so
         // we must consider that cell now too.
         // While the column is lower than the
-        // previous_pruning_point, we can have warping paths 
+        // previous_pruning_point, we can have warping paths
         // comming from the left, top left and top cells.
         // The previous_pruning_point can never be higher
         // than co.len()+1 so we cannot exceed the cost
         // matrix in this loop
         while j < prev_pruning_point {
             c = cost_fn(&seq_long[i], &seq_short[j]);
-            curr[j + 1] = c + f64::min(curr[j], f64::min(
-                prev[j + 1], prev[j]));
+            curr[j + 1] = c + f64::min(curr[j], f64::min(prev[j + 1], prev[j]));
             if curr[j + 1] < ub {
                 pruning_point = j + 1;
             }
@@ -197,7 +199,7 @@ where
         // reached the prev_pruning_point, but if we have
         // not reached the warping_end, we can still find
         // valid warping paths so we continue.
-        // The only possible warping paths are the 
+        // The only possible warping paths are the
         // left and top-left cells
         // At this point j == prev_pruning_point
         if j <= warping_band_end {
@@ -213,7 +215,7 @@ where
             j += 1;
         }
 
-        // Once we passed the prev_pruning_point but have 
+        // Once we passed the prev_pruning_point but have
         // not reached the warping_end, the only possible
         // warping paths are from the left and we can
         // start with the next row once we found a value
@@ -235,8 +237,8 @@ where
     }
 
     // The boundary constraint dictates, that the last
-    // points must match. This only is the case, if 
-    // the pruning_point of the last row is pushed 
+    // points must match. This only is the case, if
+    // the pruning_point of the last row is pushed
     // all the way to the right
     if pruning_point == seq_short.len() {
         curr[seq_short.len()]

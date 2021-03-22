@@ -4,6 +4,9 @@
 /// w  : size of Sakoe-Chiba warpping band
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
+///
+/// A description of the algorithm can be found
+/// in DOI 10.1007/s10618-018-0557-y
 pub fn dtw<T, F>(
     data: &[T],
     query: &[T],

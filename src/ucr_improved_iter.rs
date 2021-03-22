@@ -7,6 +7,9 @@ use std::cmp::Ordering;
 ///      w MUST always be less than the length of the shortest sequence
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
+///
+/// This implemenatation was inspired bz the algorithm suggested
+/// in https://arxiv.org/abs/2010.05371
 pub fn dtw<I, T, F>(
     seq_short: &[T],
     seq_long: I,

@@ -1,4 +1,5 @@
 /// Calculate the DTW cost of two sequences of vectors of n components with a naive implementation (no pruning or other optimizations)
+/// A Sakoe-Chiba band is used to restrict the warping
 pub fn dtw<F, T>(series_a: &[T], series_b: &[T], w: usize, cost_fn: F) -> f64
 where
     F: Fn(&T, &T) -> f64,
