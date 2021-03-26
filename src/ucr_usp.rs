@@ -49,7 +49,7 @@ where
     let mut cost_prev = cost.clone();
     let mut cost_tmp;
 
-    // Variables to implement the pruning - PrunedDTW
+    // Variables to implement the pruning
 
     let mut j_init;
     let mut j_end;

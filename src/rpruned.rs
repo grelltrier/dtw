@@ -11,7 +11,7 @@ use std::cmp::Ordering;
 /// bsf: The DTW of the current best match (used for abandoning)
 /// cost_fn: Function to calculate the cost between observations
 ///
-/// This implemenatation was inspired bz the algorithm suggested
+/// This implemenatation was inspired by the algorithm suggested
 /// in https://arxiv.org/abs/2010.05371
 pub fn dtw<T, F>(
     series_a: &[T],
