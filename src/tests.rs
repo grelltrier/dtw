@@ -46,18 +46,20 @@ fn ucr_usp_dtw() {
 #[test]
 fn ucr_equals_naive_dtw() {
     let cost_fn = dtw_cost::sq_l2_dist_f64;
-    // Create random sequences for the query and the data time series
-    // The observations are of type f64
-    // The time series length is between 0 and 300
-    let (data, query) = test_seq::make_rdm_series((800, 900), None);
-    // Creates dummy cummulative lower bound
-    // We want the full calculation without abandoning or pruning so it consists only of 0.0
-    let cost_ucr = ucr::dtw(&data, &query, None, data.len() - 2, f64::INFINITY, &cost_fn);
-    let cost_naive = naive::dtw(&data, &query, cost_fn);
-    assert!(
-        cost_naive.is_infinite() && cost_ucr.is_infinite()
-            || (cost_naive - cost_ucr).abs() < 0.000000000001
-    );
+    for _ in 0..100 {
+        // Create random sequences for the query and the data time series
+        // The observations are of type f64
+        // The time series length is between 0 and 300
+        let (data, query) = test_seq::make_rdm_series((800, 900), None);
+        // Creates dummy cummulative lower bound
+        // We want the full calculation without abandoning or pruning so it consists only of 0.0
+        let cost_ucr = ucr::dtw(&data, &query, None, data.len() - 2, f64::INFINITY, &cost_fn);
+        let cost_naive = naive::dtw(&data, &query, cost_fn);
+        assert!(
+            cost_naive.is_infinite() && cost_ucr.is_infinite()
+                || (cost_naive - cost_ucr).abs() < 0.000000000001
+        );
+    }
 }
 
 #[test]
