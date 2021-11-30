@@ -1,7 +1,7 @@
 [![dependency status](https://deps.rs/repo/github/grelltrier/dtw/status.svg)](https://deps.rs/repo/github/grelltrier/dtw)
 ![Build](https://github.com/grelltrier/dtw/workflows/Build/badge.svg)
 
-# DTW
+# DTW 
 This crate provides various implementations of the Dynamic Time Warping (DTW) algorithm in Rust. The algorithm can be used to calculate the similarity of two sequences of observations. You can provide a closure/function to calculate the cost between observations. You could for example use the squared euclidean distance if your observations are points or n dimensions. Some common cost functions can be found in the dtw_cost crate. The fastest implementation of DTW is in the module rpruned.
 
 ## Usage
